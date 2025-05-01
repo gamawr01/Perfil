@@ -1,24 +1,25 @@
+
 'use server';
 
 /**
- * @fileOverview Generates clues of increasing ease for a given card in the PERFIL game.
+ * @fileOverview Gera dicas de dificuldade crescente para uma determinada carta no jogo PERFIL.
  *
- * - generateClues - A function that generates clues for the card.
- * - GenerateCluesInput - The input type for the generateClues function.
- * - GenerateCluesOutput - The return type for the generateClues function.
+ * - generateClues - Função que gera dicas para a carta.
+ * - GenerateCluesInput - O tipo de entrada para a função generateClues.
+ * - GenerateCluesOutput - O tipo de retorno para a função generateClues.
  */
 
 import {ai} from '@/ai/ai-instance';
 import {z} from 'genkit';
 
 const GenerateCluesInputSchema = z.object({
-  cardName: z.string().describe('The name of the card for which to generate clues.'),
-  currentClueNumber: z.number().describe('The current clue number (1-10).'),
+  cardName: z.string().describe('O nome da carta para a qual gerar dicas.'),
+  currentClueNumber: z.number().describe('O número da dica atual (1-10).'),
 });
 export type GenerateCluesInput = z.infer<typeof GenerateCluesInputSchema>;
 
 const GenerateCluesOutputSchema = z.object({
-  clue: z.string().describe('The generated clue for the card.'),
+  clue: z.string().describe('A dica gerada para a carta.'),
 });
 export type GenerateCluesOutput = z.infer<typeof GenerateCluesOutputSchema>;
 
@@ -30,16 +31,17 @@ const cluePrompt = ai.definePrompt({
   name: 'cluePrompt',
   input: {
     schema: z.object({
-      cardName: z.string().describe('The name of the card for which to generate clues.'),
-      currentClueNumber: z.number().describe('The current clue number (1-10).'),
+      cardName: z.string().describe('O nome da carta para a qual gerar dicas.'),
+      currentClueNumber: z.number().describe('O número da dica atual (1-10).'),
     }),
   },
   output: {
     schema: z.object({
-      clue: z.string().describe('The generated clue for the card.'),
+      clue: z.string().describe('A dica gerada para a carta.'),
     }),
   },
-  prompt: `You are the clue master for the game Perfil. Your job is to provide a clue about the card to help the players guess the card. The difficulty of the clue should increase with the clue number. The card name is: {{{cardName}}}. This is clue number {{{currentClueNumber}}}. Provide the clue in a single short sentence.  Do not reveal the answer. The response should just be the clue itself, nothing more.`,
+  // Translated prompt
+  prompt: `Você é o mestre das dicas do jogo Perfil. Seu trabalho é fornecer uma dica sobre a carta para ajudar os jogadores a adivinhá-la. A dificuldade da dica deve aumentar com o número da dica. O nome da carta é: {{{cardName}}}. Esta é a dica número {{{currentClueNumber}}}. Forneça a dica em uma única frase curta. Não revele a resposta. A resposta deve ser apenas a dica em si, nada mais.`,
 });
 
 const generateCluesFlow = ai.defineFlow<

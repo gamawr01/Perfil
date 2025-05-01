@@ -1,3 +1,4 @@
+
 'use client';
 
 import React from 'react';
@@ -17,13 +18,15 @@ interface PlayerScoresProps {
 }
 
 export function PlayerScores({ players, currentPlayerId }: PlayerScoresProps) {
-  const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
+  // Ensure players is always an array before sorting
+  const validPlayers = Array.isArray(players) ? players : [];
+  const sortedPlayers = [...validPlayers].sort((a, b) => b.score - a.score);
 
   return (
     <Card className="w-full md:w-64 shrink-0">
       <CardHeader>
         <CardTitle className="text-xl flex items-center gap-2 text-primary">
-          <Trophy className="h-5 w-5" /> Scores
+          <Trophy className="h-5 w-5" /> Pontuações {/* Translated */}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -51,8 +54,10 @@ export function PlayerScores({ players, currentPlayerId }: PlayerScoresProps) {
             </span>
           </div>
         ))}
-         {players.length === 0 && (
-            <p className="text-muted-foreground text-center italic">No players yet.</p>
+         {/* Check validPlayers length */}
+         {validPlayers.length === 0 && (
+             // Translated
+            <p className="text-muted-foreground text-center italic">Nenhum jogador ainda.</p>
          )}
       </CardContent>
     </Card>

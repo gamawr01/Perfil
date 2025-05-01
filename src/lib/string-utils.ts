@@ -1,10 +1,10 @@
 /**
- * Normalizes a string answer for comparison.
- * - Converts to lowercase.
- * - Removes common punctuation (.,!?-').
- * - Trims leading/trailing whitespace.
- * - Replaces multiple spaces with a single space.
- * - Removes diacritics (accents).
+ * Normaliza uma resposta em string para comparação.
+ * - Converte para minúsculas.
+ * - Remove pontuações comuns (.,!?-').
+ * - Remove espaços em branco no início e no fim.
+ * - Substitui múltiplos espaços por um único espaço.
+ * - Remove diacríticos (acentos).
  */
 export function normalizeAnswer(answer: string): string {
   if (!answer) {
@@ -12,10 +12,10 @@ export function normalizeAnswer(answer: string): string {
   }
 
   return answer
-    .toLowerCase() // Convert to lowercase
-    .normalize('NFD') // Decompose accented characters
-    .replace(/[\u0300-\u036f]/g, '') // Remove diacritics (accents)
-    .replace(/[.,!?'"-]/g, '') // Remove common punctuation
-    .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-    .trim(); // Remove leading/trailing whitespace
+    .toLowerCase() // Converte para minúsculas
+    .normalize('NFD') // Decompõe caracteres acentuados
+    .replace(/[\u0300-\u036f]/g, '') // Remove diacríticos (acentos)
+    .replace(/[.,!?'"-]/g, '') // Remove pontuações comuns
+    .replace(/\s+/g, ' ') // Substitui múltiplos espaços por um único espaço
+    .trim(); // Remove espaços no início/fim
 }

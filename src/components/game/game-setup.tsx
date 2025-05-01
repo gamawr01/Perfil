@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Settings, Play } from 'lucide-react';
 
-const CATEGORIES = ['General Knowledge', 'Movies', 'History', 'Science', 'Sports', 'Technology', 'Geography']; // Added more categories
+// Translated Categories
+const CATEGORIES = ['Conhecimentos Gerais', 'Filmes', 'História', 'Ciência', 'Esportes', 'Tecnologia', 'Geografia'];
 const PLAYER_COUNTS = [1, 2, 3, 4];
 
 export default function GameSetup() {
@@ -41,19 +42,19 @@ export default function GameSetup() {
     <Card className="w-full max-w-md">
       <CardHeader>
         <CardTitle className="text-2xl text-primary flex items-center gap-2">
-          <Settings className="h-6 w-6" /> Game Setup
+          <Settings className="h-6 w-6" /> Configuração do Jogo {/* Translated */}
         </CardTitle>
-        <CardDescription>Choose your game settings before starting.</CardDescription>
+        <CardDescription>Escolha as configurações do jogo antes de começar.</CardDescription> {/* Translated */}
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-2">
-          <Label htmlFor="category-select">Select Category</Label>
+          <Label htmlFor="category-select">Selecionar Categoria</Label> {/* Translated */}
           <Select
             onValueChange={(value) => setSelectedCategory(value)}
             value={selectedCategory ?? undefined}
           >
             <SelectTrigger id="category-select" className="w-full">
-              <SelectValue placeholder="Select a category..." />
+              <SelectValue placeholder="Selecione uma categoria..." /> {/* Translated */}
             </SelectTrigger>
             <SelectContent>
               {CATEGORIES.map((category) => (
@@ -66,18 +67,18 @@ export default function GameSetup() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="player-count-select">Number of Players</Label>
+          <Label htmlFor="player-count-select">Número de Jogadores</Label> {/* Translated */}
           <Select
             onValueChange={(value) => setSelectedPlayerCount(parseInt(value, 10))}
              value={selectedPlayerCount?.toString() ?? undefined}
           >
             <SelectTrigger id="player-count-select" className="w-full">
-              <SelectValue placeholder="Select number of players..." />
+              <SelectValue placeholder="Selecione o número de jogadores..." /> {/* Translated */}
             </SelectTrigger>
             <SelectContent>
               {PLAYER_COUNTS.map((count) => (
                 <SelectItem key={count} value={count.toString()}>
-                  {count} Player{count > 1 ? 's' : ''}
+                  {count} Jogador{count > 1 ? 'es' : ''} {/* Translated */}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -90,7 +91,7 @@ export default function GameSetup() {
           className="w-full"
           size="lg"
         >
-          <Play className="mr-2 h-5 w-5" /> Start Game
+          <Play className="mr-2 h-5 w-5" /> Iniciar Jogo {/* Translated */}
         </Button>
       </CardContent>
     </Card>

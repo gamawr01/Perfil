@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -52,6 +53,7 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
     let attempts = 0;
     while (attempts < MAX_GENERATION_ATTEMPTS) {
       attempts++;
+      // Pass category in Portuguese to the AI if needed, or handle internally
       const card = await generateCard({ topic: category, numClues: NUM_CLUES });
       // Normalize the answer before checking for uniqueness
       const normalizedAnswer = normalizeAnswer(card.answer);
@@ -61,12 +63,12 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
       }
       console.warn(`Generated duplicate card (attempt ${attempts}): ${card.answer}`);
       toast({
-        title: 'Duplicate Card Detected',
-        description: `Trying to generate a unique card... (Attempt ${attempts})`,
+        title: 'Carta Duplicada Detectada', // Translated
+        description: `Tentando gerar uma carta única... (Tentativa ${attempts})`, // Translated
         variant: 'default',
       });
     }
-    throw new Error(`Failed to generate a unique card after ${MAX_GENERATION_ATTEMPTS} attempts.`);
+    throw new Error(`Falha ao gerar uma carta única após ${MAX_GENERATION_ATTEMPTS} tentativas.`); // Translated
   }, [category, generatedAnswers, toast]); // Added dependencies
 
   // revealNextClue now accepts necessary parameters directly
@@ -82,7 +84,7 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
         nextClueText = allClues[clueIdx];
       } else {
         // Fallback to generateClues API if needed (should ideally not happen if generateCard works)
-        console.warn("Falling back to generateClues API for clue:", clueIdx + 1);
+        console.warn("Recorrendo à API generateClues para a dica:", clueIdx + 1); // Translated
         const clueData: GenerateCluesOutput = await generateClues({
           cardName: cardAnswer, // cardAnswer is checked for undefined above
           currentClueNumber: clueIdx + 1,
@@ -98,17 +100,17 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
       if (clueIdx + 1 >= NUM_CLUES) {
         setGameOver(true);
         toast({
-          title: 'Round Over',
-          description: `No one guessed correctly! The answer was: ${cardAnswer}`,
+          title: 'Fim da Rodada', // Translated
+          description: `Ninguém acertou! A resposta era: ${cardAnswer}`, // Translated
           variant: 'destructive',
         });
       }
 
     } catch (error) {
-      console.error('Error revealing clue:', error);
+      console.error('Erro ao revelar dica:', error); // Translated
       toast({
-        title: 'Error',
-        description: 'Failed to reveal the next clue.',
+        title: 'Erro', // Translated
+        description: 'Falha ao revelar a próxima dica.', // Translated
         variant: 'destructive',
       });
     } finally {
@@ -124,7 +126,8 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
 
      setLoadingCard(true);
      setGameOver(false);
-     setPlayers(initialPlayers.map(p => ({ ...p, score: 0 }))); // Reset scores for a new game using initialPlayers
+     // Use Portuguese default names if needed
+     setPlayers(initialPlayers.map((p, i) => ({ ...p, name: `Jogador ${i + 1}`, score: 0 }))); // Reset scores using initialPlayers
      setGeneratedAnswers(new Set()); // Clear generated answers for new game
      setCurrentPlayerIndex(0); // Start with player 1
      setRoundStartingPlayerIndex(0); // Player 0 starts the game/round
@@ -141,14 +144,14 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
        if (card?.answer) {
          revealNextClue(card.answer, 0, card.clues); // Pass necessary info
        } else {
-          throw new Error("Generated card is missing answer.");
+          throw new Error("A carta gerada não tem resposta."); // Translated
        }
      } catch (error) {
-       console.error('Error starting game:', error);
-       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+       console.error('Erro ao iniciar o jogo:', error); // Translated
+       const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.'; // Translated
        toast({
-         title: 'Error Starting Game',
-         description: `Failed to generate the first card: ${errorMessage}. Please try again.`,
+         title: 'Erro ao Iniciar Jogo', // Translated
+         description: `Falha ao gerar a primeira carta: ${errorMessage}. Por favor, tente novamente.`, // Translated
          variant: 'destructive',
        });
        setGameStarted(false); // Ensure game doesn't appear started on error
@@ -164,7 +167,8 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
   useEffect(() => {
     const initialPlayers = Array.from({ length: playerCount }, (_, i) => ({
       id: `player${i + 1}`,
-      name: `Player ${i + 1}`,
+      // Use Portuguese default name here too
+      name: `Jogador ${i + 1}`,
       score: 0,
     }));
     setPlayers(initialPlayers);
@@ -199,14 +203,14 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
       if (card?.answer) {
          revealNextClue(card.answer, 0, card.clues);
       } else {
-          throw new Error("Generated card is missing answer.");
+          throw new Error("A carta gerada não tem resposta."); // Translated
       }
     } catch (error) {
-      console.error('Error generating next card:', error);
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+      console.error('Erro ao gerar próxima carta:', error); // Translated
+      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.'; // Translated
       toast({
-        title: 'Error Generating Card',
-        description: `Failed to generate the next card: ${errorMessage}. Please try again.`,
+        title: 'Erro ao Gerar Carta', // Translated
+        description: `Falha ao gerar a próxima carta: ${errorMessage}. Por favor, tente novamente.`, // Translated
         variant: 'destructive',
       });
        // Attempt to keep the game going might be complex, maybe just signal error
@@ -230,7 +234,7 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
     const currentPlayer = players[currentPlayerIndex]; // Ensure currentPlayerIndex is valid
 
     if (!currentPlayer) {
-      console.error("Current player is undefined");
+      console.error("Jogador atual indefinido"); // Translated
       setIsSubmitting(false);
       return; // Exit if player doesn't exist
     }
@@ -243,17 +247,17 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
         )
       );
       toast({
-        title: 'Correct!',
+        title: 'Correto!', // Translated
         // Display the original answer in the toast for clarity
-        description: `${currentPlayer.name} guessed correctly and earned ${pointsAwarded} points! The answer was: ${currentCard.answer}`,
+        description: `${currentPlayer.name} acertou e ganhou ${pointsAwarded} pontos! A resposta era: ${currentCard.answer}`, // Translated
         variant: 'default',
         className: 'bg-accent text-accent-foreground',
       });
       setGameOver(true); // End the round
     } else {
       toast({
-        title: 'Incorrect Guess',
-        description: `Sorry ${currentPlayer.name}, that's not it.`,
+        title: 'Palpite Incorreto', // Translated
+        description: `Desculpe ${currentPlayer.name}, não é isso.`, // Translated
         variant: 'destructive',
         className: 'animate-shake', // Keep the shake animation
       });
@@ -272,8 +276,8 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
          if (currentCard?.answer && currentCard?.clues) {
             revealNextClue(currentCard.answer, currentClueIndex, currentCard.clues);
          } else {
-            console.error("Cannot reveal next clue: Card data is missing.");
-            toast({ title: "Error", description: "Could not fetch next clue data.", variant: "destructive" });
+            console.error("Não é possível revelar a próxima dica: Faltam dados da carta."); // Translated
+            toast({ title: "Erro", description: "Não foi possível buscar os dados da próxima dica.", variant: "destructive" }); // Translated
          }
        }
     }
@@ -306,45 +310,55 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
         <CardHeader>
           <CardTitle className="text-2xl text-primary flex justify-between items-center">
             <span>
-              {gameStarted && currentCard ? `Current Card (${POINTS_PER_CLUE[Math.max(0, currentClueIndex - 1)] ?? 0} Points)` : 'Loading Game...'}
+              {/* Translated */}
+              {gameStarted && currentCard ? `Carta Atual (${POINTS_PER_CLUE[Math.max(0, currentClueIndex - 1)] ?? 0} Pontos)` : 'Carregando Jogo...'}
             </span>
              {gameStarted && !gameOver && players.length > 0 && (
                <span className="text-sm font-medium text-muted-foreground">
-                 Player: {players[currentPlayerIndex]?.name ?? 'N/A'}
+                 {/* Translated */}
+                 Jogador: {players[currentPlayerIndex]?.name ?? 'N/A'}
                </span>
              )}
           </CardTitle>
           {gameStarted && currentCard && (
-            <CardDescription>Topic: {currentCard.topic} | Category: {category}</CardDescription>
+            // Translated
+            <CardDescription>Tópico: {currentCard.topic} | Categoria: {category}</CardDescription>
           )}
            {!gameStarted && !loadingCard && (
-              <CardDescription>Setting up the game...</CardDescription>
+              // Translated
+              <CardDescription>Configurando o jogo...</CardDescription>
            )}
            {loadingCard && !gameStarted && (
-              <CardDescription>Generating the first card for {category}...</CardDescription>
+              // Translated
+              <CardDescription>Gerando a primeira carta para {category}...</CardDescription>
            )}
            {loadingCard && gameStarted && (
-               <CardDescription>Generating the next card for {category}...</CardDescription>
+               // Translated
+               <CardDescription>Gerando a próxima carta para {category}...</CardDescription>
            )}
         </CardHeader>
         <CardContent className="space-y-4 flex-grow">
           {!gameStarted && !loadingCard ? ( // Show setup only if not started AND not loading
              <div className="text-center flex flex-col items-center justify-center h-full min-h-[200px]">
-               <p className="text-muted-foreground mb-4">Initializing players and preparing the board...</p>
+               {/* Translated */}
+               <p className="text-muted-foreground mb-4">Inicializando jogadores e preparando o tabuleiro...</p>
                 <Button onClick={onReturnToSetup} variant="outline">
-                    Back to Setup
+                    {/* Translated */}
+                    Voltar para Configuração
                 </Button>
             </div>
           ) : loadingCard && !currentCard ? ( // Show initial loader only when loading first card
              <div className="text-center flex flex-col items-center justify-center h-full min-h-[200px]">
                <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-               <p className="text-muted-foreground">Generating the first card...</p>
+               {/* Translated */}
+               <p className="text-muted-foreground">Gerando a primeira carta...</p>
              </div>
            ) : ( // Main game view
             <>
               <ScrollArea className="h-48 w-full rounded-md border p-4 bg-secondary">
                 {revealedClues.length === 0 && !loadingClue && !loadingCard && (
-                  <p className="text-muted-foreground italic text-center py-4">Revealing first clue...</p>
+                   // Translated
+                  <p className="text-muted-foreground italic text-center py-4">Revelando primeira dica...</p>
                 )}
                  {revealedClues.map((clue, index) => (
                   <p key={index} className="mb-2 text-foreground">{clue}</p>
@@ -356,35 +370,40 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
                      <div className="flex justify-center items-center pt-2"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
                  )}
                 {gameOver && currentCard && (
-                  <p className="mt-4 font-bold text-center text-destructive">Answer: {currentCard.answer}</p>
+                   // Translated
+                  <p className="mt-4 font-bold text-center text-destructive">Resposta: {currentCard.answer}</p>
                 )}
               </ScrollArea>
 
               <Progress value={(currentClueIndex / NUM_CLUES) * 100} className="w-full h-2" />
               <p className="text-sm text-muted-foreground text-center">
-                Clue {Math.min(currentClueIndex, NUM_CLUES)} of {NUM_CLUES}
+                 {/* Translated */}
+                Dica {Math.min(currentClueIndex, NUM_CLUES)} de {NUM_CLUES}
               </p>
 
               {!gameOver && players.length > 0 && currentCard && ( // Ensure card exists for input
                 <form onSubmit={handleGuessSubmit} className="flex gap-2 items-center">
                   <Input
                     type="text"
-                    placeholder={`${players[currentPlayerIndex]?.name ?? 'Current Player'}, make your guess...`}
+                     // Translated placeholder
+                    placeholder={`${players[currentPlayerIndex]?.name ?? 'Jogador Atual'}, faça seu palpite...`}
                     value={guess}
                     onChange={(e) => setGuess(e.target.value)}
                     disabled={loadingClue || gameOver || isSubmitting || loadingCard}
                     className="flex-grow"
-                    aria-label="Guess input"
+                    aria-label="Campo de palpite" // Translated aria-label
                   />
                   <Button type="submit" disabled={loadingClue || !guess.trim() || gameOver || isSubmitting || loadingCard} variant="default">
                     {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Submit Guess
+                     {/* Translated */}
+                    Enviar Palpite
                   </Button>
                 </form>
               )}
                {/* Case where game started but players array is empty (should not happen with defaults) */}
                {gameStarted && players.length === 0 && (
-                 <p className="text-center text-destructive">Error: No players found.</p>
+                 // Translated
+                 <p className="text-center text-destructive">Erro: Nenhum jogador encontrado.</p>
                )}
             </>
           )}
@@ -392,7 +411,8 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
         <CardFooter className="flex flex-wrap justify-between items-center gap-2 pt-4"> {/* Added flex-wrap and gap */}
            {/* Return to Setup Button */}
            <Button onClick={onReturnToSetup} variant="outline" size="sm">
-              Return to Setup
+               {/* Translated */}
+              Voltar para Configuração
             </Button>
 
           {gameStarted && !gameOver && currentCard && ( // Ensure card exists for reveal button
@@ -402,14 +422,16 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
                 variant="outline"
               >
                 {loadingClue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ChevronRight className="mr-2 h-4 w-4" />}
-                Reveal Next Clue ({POINTS_PER_CLUE[currentClueIndex] ?? 0} pts)
+                 {/* Translated */}
+                Revelar Próxima Dica ({POINTS_PER_CLUE[currentClueIndex] ?? 0} pts)
               </Button>
           )}
            {gameStarted && gameOver && players.length > 0 && (
              // Use updated handleNextRound
              <Button onClick={handleNextRound} disabled={loadingCard}>
                 {loadingCard ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SkipForward className="mr-2 h-4 w-4" />}
-                 Next Card ({players[(roundStartingPlayerIndex) % players.length]?.name ?? 'Next Player'}'s Turn) {/* Show who starts NEXT round */}
+                 {/* Translated - Show who starts NEXT round */}
+                 Próxima Carta (Vez de {players[(roundStartingPlayerIndex) % players.length]?.name ?? 'Próximo Jogador'})
              </Button>
            )}
 
@@ -417,6 +439,7 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
       </Card>
 
       {/* Ensure currentPlayerId is passed correctly, even if players array is empty */}
+      {/* Pass players array to PlayerScores */}
       <PlayerScores players={players} currentPlayerId={gameStarted && !gameOver && players.length > 0 ? players[currentPlayerIndex]?.id : undefined} />
     </div>
   );

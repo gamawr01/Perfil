@@ -3,11 +3,11 @@
 'use server';
 
 /**
- * @fileOverview Generates a new card with clues for the Perfil Online game using AI.
+ * @fileOverview Gera uma nova carta com dicas para o jogo Perfil Online usando IA.
  *
- * - generateCard - A function that generates a card with clues.
- * - GenerateCardInput - The input type for the generateCard function.
- * - GenerateCardOutput - The return type for the generateCard function.
+ * - generateCard - Função que gera uma carta com dicas.
+ * - GenerateCardInput - O tipo de entrada para a função generateCard.
+ * - GenerateCardOutput - O tipo de retorno para a função generateCard.
  */
 
 import {ai} from '@/ai/ai-instance';
@@ -15,21 +15,21 @@ import {z} from 'genkit';
 import { v4 as uuidv4 } from 'uuid'; // Import uuid library
 
 const GenerateCardInputSchema = z.object({
-  topic: z.string().describe('The topic category for the card to be generated (e.g., Movies, History).'),
-  numClues: z.number().int().min(1).max(20).default(10).describe('The number of clues to generate for the card (typically 10).'),
+  topic: z.string().describe('A categoria do tópico para a carta a ser gerada (ex: Filmes, História).'),
+  numClues: z.number().int().min(1).max(20).default(10).describe('O número de dicas a gerar para a carta (normalmente 10).'),
   // Optional: Add previously generated answers to guide uniqueness, though direct prompting is often better.
-  // previousAnswers: z.array(z.string()).optional().describe('A list of answers already used in this game session to avoid repetition.')
+  // previousAnswers: z.array(z.string()).optional().describe('Uma lista de respostas já usadas nesta sessão de jogo para evitar repetição.')
 });
 export type GenerateCardInput = z.infer<typeof GenerateCardInputSchema>;
 
 const GenerateCardOutputSchema = z.object({
-  cardId: z.string().uuid().describe('A unique UUID identifier for the card.'),
-  topic: z.string().describe('The topic of the card, confirming the input category.'),
+  cardId: z.string().uuid().describe('Um identificador UUID único para a carta.'),
+  topic: z.string().describe('O tópico da carta, confirmando a categoria de entrada.'),
   clues: z
     .array(z.string())
-    .min(1) // Ensure at least one clue
-    .describe('An array of clues for the card, ordered from hardest (index 0) to easiest.'),
-  answer: z.string().nonempty().describe('The specific, concise answer to the card (person, place, thing, event, etc.).'),
+    .min(1) // Garante pelo menos uma dica
+    .describe('Um array de dicas para a carta, ordenadas da mais difícil (índice 0) para a mais fácil.'),
+  answer: z.string().nonempty().describe('A resposta específica e concisa para a carta (pessoa, lugar, coisa, evento, etc.).'),
 });
 export type GenerateCardOutput = z.infer<typeof GenerateCardOutputSchema>;
 
@@ -44,49 +44,49 @@ const generateCardPrompt = ai.definePrompt({
   name: 'generateCardPrompt',
   input: {
     schema: z.object({
-      topic: z.string().describe('The topic category for the card to be generated (e.g., Movies, History).'),
-      numClues: z.number().int().min(1).max(20).describe('The number of clues to generate for the card (typically 10).'),
-      cardId: z.string().uuid().describe('The pre-generated UUID for this card.'), // Input schema expects the cardId
-      // previousAnswers: z.array(z.string()).optional().describe('A list of answers already used.') // Uncomment if using this approach
+      topic: z.string().describe('A categoria do tópico para a carta a ser gerada (ex: Filmes, História).'),
+      numClues: z.number().int().min(1).max(20).describe('O número de dicas a gerar para a carta (normalmente 10).'),
+      cardId: z.string().uuid().describe('O UUID pré-gerado para esta carta.'), // Input schema expects the cardId
+      // previousAnswers: z.array(z.string()).optional().describe('Uma lista de respostas já usadas.') // Uncomment if using this approach
     }),
   },
   output: {
     // Ensure the output schema includes the cardId but relies on the input cardId
      // Removed .uuid() from cardId here as it's not supported by the API for response schemas
      schema: z.object({
-       cardId: z.string().describe('The unique UUID identifier provided for the card.'),
-       topic: z.string().describe('The topic of the card, matching the input category.'),
+       cardId: z.string().describe('O identificador UUID único fornecido para a carta.'),
+       topic: z.string().describe('O tópico da carta, correspondendo à categoria de entrada.'),
        clues: z
          .array(z.string())
          .min(1)
-         .describe('An array of clues, ordered from hardest (index 0) to easiest.'),
-       answer: z.string().nonempty().describe('The specific, concise answer to the card.'),
+         .describe('Um array de dicas, ordenadas da mais difícil (índice 0) para a mais fácil.'),
+       answer: z.string().nonempty().describe('A resposta específica e concisa para a carta.'),
      }),
   },
-  // Updated Prompt:
-  prompt: `You are an expert game designer creating cards for the guessing game "Perfil Online".
-Your task is to generate a UNIQUE and engaging card based on the given topic.
+  // Updated Prompt (Translated):
+  prompt: `Você é um designer de jogos experiente criando cartas para o jogo de adivinhação "Perfil Online".
+Sua tarefa é gerar uma carta ÚNICA e envolvente com base no tópico fornecido.
 
-**Instructions:**
-1.  **Determine the Answer:** Choose a specific person, place, thing, concept, or event that fits the category: **{{{topic}}}**. This will be the card's answer. **Crucially, ensure this answer is distinct and not overly common or easily guessable from the topic alone.** Avoid generic answers.
-2.  **Generate Clues:** Create exactly **{{{numClues}}}** clues for the answer.
-    *   **Difficulty Progression:** The clues MUST start very difficult/obscure (Clue 1) and progressively get easier. Clue {{{numClues}}} should make the answer quite obvious, but still require thought.
-    *   **Clue Content:** Clues should be factual, interesting, and hint at the answer without giving it away too early. Avoid yes/no questions or overly direct hints in early clues.
-    *   **Clarity:** Each clue should be a single, clear sentence.
-3.  **Format Output:** Structure your response as a JSON object matching the output schema. Use the provided UUID for the 'cardId'.
+**Instruções:**
+1.  **Determine a Resposta:** Escolha uma pessoa, lugar, coisa, conceito ou evento específico que se encaixe na categoria: **{{{topic}}}**. Esta será a resposta da carta. **Crucialmente, garanta que esta resposta seja distinta e não excessivamente comum ou facilmente adivinhável apenas pelo tópico.** Evite respostas genéricas.
+2.  **Gere Dicas:** Crie exatamente **{{{numClues}}}** dicas para a resposta.
+    *   **Progressão de Dificuldade:** As dicas DEVEM começar muito difíceis/obscuras (Dica 1) e progressivamente ficar mais fáceis. A Dica {{{numClues}}} deve tornar a resposta bastante óbvia, mas ainda exigir raciocínio.
+    *   **Conteúdo da Dica:** As dicas devem ser factuais, interessantes e sugerir a resposta sem revelá-la muito cedo. Evite perguntas de sim/não ou dicas excessivamente diretas nas primeiras dicas.
+    *   **Clareza:** Cada dica deve ser uma frase única e clara.
+3.  **Formate a Saída:** Estruture sua resposta como um objeto JSON correspondente ao esquema de saída. Use o UUID fornecido para o 'cardId'.
 
-**Input Topic:** {{{topic}}}
-**Number of Clues:** {{{numClues}}}
-**Card ID:** {{{cardId}}}
+**Tópico de Entrada:** {{{topic}}}
+**Número de Dicas:** {{{numClues}}}
+**ID da Carta:** {{{cardId}}}
 
-**Example (Topic: Science):**
-Answer: Black Hole
-Clue 1: My existence was theorized long before I was directly observed.
-Clue 2: Nothing, not even light, can escape my gravitational pull once it crosses my event horizon.
+**Exemplo (Tópico: Ciência):**
+Resposta: Buraco Negro
+Dica 1: Minha existência foi teorizada muito antes de eu ser observado diretamente.
+Dica 2: Nada, nem mesmo a luz, pode escapar da minha atração gravitacional depois de cruzar meu horizonte de eventos.
 ...
-Clue 10: I am often found at the center of galaxies, including our own Milky Way.
+Dica 10: Sou frequentemente encontrado no centro de galáxias, incluindo nossa própria Via Láctea.
 
-**Generate the card now.**
+**Gere a carta agora.**
 `,
 });
 
@@ -106,19 +106,22 @@ const generateCardFlow = ai.defineFlow<
     const {output} = await generateCardPrompt(input);
 
     if (!output) {
-        throw new Error("AI failed to generate card data.");
+        // Translated
+        throw new Error("IA falhou ao gerar os dados da carta.");
     }
     // Validate the number of clues generated
     const expectedNumClues = input.numClues ?? 10; // Use default if not provided
     if (output.clues.length !== expectedNumClues) {
-      console.warn(`AI generated ${output.clues.length} clues, expected ${expectedNumClues}. Adjusting...`);
+       // Translated warning
+      console.warn(`IA gerou ${output.clues.length} dicas, esperava ${expectedNumClues}. Ajustando...`);
       // Simple truncation or padding (less ideal, but fallback)
       if (output.clues.length > expectedNumClues) {
           output.clues = output.clues.slice(0, expectedNumClues);
       } else {
           // Pad with placeholder - might need better handling
           while(output.clues.length < expectedNumClues) {
-              output.clues.push("(Missing clue)");
+               // Translated placeholder
+              output.clues.push("(Dica faltando)");
           }
       }
       // Consider throwing an error or retrying if strict count is required
@@ -126,7 +129,8 @@ const generateCardFlow = ai.defineFlow<
 
     // Ensure the returned cardId matches the input cardId (it should, as per prompt)
      if (output.cardId !== input.cardId) {
-         console.warn(`AI returned a different cardId (${output.cardId}) than expected (${input.cardId}). Using the original ID.`);
+          // Translated warning
+         console.warn(`IA retornou um cardId diferente (${output.cardId}) do esperado (${input.cardId}). Usando o ID original.`);
          output.cardId = input.cardId;
      }
 
@@ -135,8 +139,9 @@ const generateCardFlow = ai.defineFlow<
     try {
         return GenerateCardOutputSchema.parse(output);
     } catch (validationError) {
-        console.error("AI output failed validation:", validationError);
-        throw new Error("AI output did not match the expected format after generation.");
+        // Translated error
+        console.error("Saída da IA falhou na validação:", validationError);
+        throw new Error("A saída da IA não correspondeu ao formato esperado após a geração.");
     }
   }
 );

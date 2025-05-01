@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Perfil Online', // Updated title
-  description: 'Play the Perfil game online with friends!', // Updated description
+  title: 'Perfil Online', // Kept original title as it might be a brand name
+  description: 'Jogue Perfil online com amigos!', // Translated description
 };
 
 export default function RootLayout({
@@ -24,7 +24,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="pt-BR"> {/* Changed lang to pt-BR */}
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {children}
         <Toaster /> {/* Add Toaster component */}
