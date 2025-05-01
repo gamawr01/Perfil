@@ -52,7 +52,7 @@ const generateCardPrompt = ai.definePrompt({
   },
   output: {
     // Ensure the output schema includes the cardId but relies on the input cardId
-     // Removed .uuid() from cardId here as it's not supported by the API for response schemas
+     // Removed format: uuid from cardId here as it's not supported by the API for response schemas
      schema: z.object({
        cardId: z.string().describe('O identificador UUID único fornecido para a carta.'),
        topic: z.string().describe('O tópico da carta, correspondendo à categoria de entrada.'),
@@ -63,12 +63,16 @@ const generateCardPrompt = ai.definePrompt({
        answer: z.string().nonempty().describe('A resposta específica e concisa para a carta.'),
      }),
   },
-  // Updated Prompt (Translated):
+  // Updated Prompt (Translated & Enhanced for Variety):
   prompt: `Você é um designer de jogos experiente criando cartas para o jogo de adivinhação "Perfil Online".
 Sua tarefa é gerar uma carta ÚNICA e envolvente com base no tópico fornecido.
 
 **Instruções:**
-1.  **Determine a Resposta:** Escolha uma pessoa, lugar, coisa, conceito ou evento específico que se encaixe na categoria: **{{{topic}}}**. Esta será a resposta da carta. **Crucialmente, garanta que esta resposta seja distinta e não excessivamente comum ou facilmente adivinhável apenas pelo tópico.** Evite respostas genéricas.
+1.  **Determine a Resposta:** Escolha uma pessoa, lugar, coisa, conceito ou evento específico que se encaixe na categoria: **{{{topic}}}**. Esta será a resposta da carta.
+    *   **Critério de Singularidade:** **Crucialmente, garanta que esta resposta seja distinta e NÃO excessivamente comum ou facilmente adivinhável apenas pelo tópico.**
+    *   **Incentivo à Variedade:** **Procure por respostas mais específicas, menos óbvias ou de nicho dentro do tópico fornecido.** Evite as respostas mais clichês ou os primeiros exemplos que vêm à mente para esta categoria. Queremos variedade entre as cartas geradas ao longo do tempo.
+    *   **Exemplo de Pensamento (Tópico: Filmes):** Em vez de "O Poderoso Chefão" ou "Titanic", considere "Amélie", "Oldboy" ou um filme cult menos conhecido, mas ainda identificável.
+    *   **Exemplo de Pensamento (Tópico: Ciência):** Em vez de "Gravidade" ou "Eletricidade", considere "Efeito Leidenfrost", "Bósons W e Z" ou uma descoberta científica específica.
 2.  **Gere Dicas:** Crie exatamente **{{{numClues}}}** dicas para a resposta.
     *   **Progressão de Dificuldade:** As dicas DEVEM começar muito difíceis/obscuras (Dica 1) e progressivamente ficar mais fáceis. A Dica {{{numClues}}} deve tornar a resposta bastante óbvia, mas ainda exigir raciocínio.
     *   **Conteúdo da Dica:** As dicas devem ser factuais, interessantes e sugerir a resposta sem revelá-la muito cedo. Evite perguntas de sim/não ou dicas excessivamente diretas nas primeiras dicas.
@@ -79,14 +83,14 @@ Sua tarefa é gerar uma carta ÚNICA e envolvente com base no tópico fornecido.
 **Número de Dicas:** {{{numClues}}}
 **ID da Carta:** {{{cardId}}}
 
-**Exemplo (Tópico: Ciência):**
-Resposta: Buraco Negro
-Dica 1: Minha existência foi teorizada muito antes de eu ser observado diretamente.
-Dica 2: Nada, nem mesmo a luz, pode escapar da minha atração gravitacional depois de cruzar meu horizonte de eventos.
+**Exemplo (Tópico: Ciência - Buscando variedade):**
+Resposta: Tardígrado (Urso d'água)
+Dica 1: Sou considerado um extremófilo.
+Dica 2: Posso sobreviver em condições que seriam letais para a maioria das outras formas de vida conhecidas, incluindo o vácuo do espaço.
 ...
-Dica 10: Sou frequentemente encontrado no centro de galáxias, incluindo nossa própria Via Láctea.
+Dica 10: Apesar do meu tamanho microscópico, sou conhecido pela minha incrível resiliência e aparência segmentada, quase como um urso.
 
-**Gere a carta agora.**
+**Gere a carta agora, focando em uma resposta interessante e menos comum.**
 `,
 });
 
