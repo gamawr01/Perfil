@@ -1,4 +1,4 @@
-// use server'
+'use server';
 
 /**
  * @fileOverview Generates clues of increasing ease for a given card in the PERFIL game.

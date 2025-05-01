@@ -1,36 +1,58 @@
+'use server';
 
-import type {NextConfig} from 'next';
+/**
+ * @fileOverview Generates clues of increasing ease for a given card in the PERFIL game.
+ *
+ * - generateClues - A function that generates clues for the card.
+ * - GenerateCluesInput - The input type for the generateClues function.
+ * - GenerateCluesOutput - The return type for the generateClues function.
+ */
 
-const nextConfig: NextConfig = {
-  /* config options here */
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'picsum.photos',
-        port: '',
-        pathname: '/**',
-      },
-    ],
-  },
-  webpack: (config, { isServer }) => {
-    // Exclude 'async_hooks' module from client-side bundle
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        async_hooks: false, // Provide a fallback (false means exclude)
-      };
-    }
+import {ai} from '@/ai/ai-instance';
+import {z} from 'genkit';
 
-    // Important: return the modified config
-    return config;
-  },
-};
+const GenerateCluesInputSchema = z.object({
+  cardName: z.string().describe('The name of the card for which to generate clues.'),
+  currentClueNumber: z.number().describe('The current clue number (1-10).'),
+});
+export type GenerateCluesInput = z.infer<typeof GenerateCluesInputSchema>;
 
-export default nextConfig;
+const GenerateCluesOutputSchema = z.object({
+  clue: z.string().describe('The generated clue for the card.'),
+});
+export type GenerateCluesOutput = z.infer<typeof GenerateCluesOutputSchema>;
+
+export async function generateClues(input: GenerateCluesInput): Promise<GenerateCluesOutput> {
+  return generateCluesFlow(input);
+}
+
+const cluePrompt = ai.definePrompt({
+  name: 'cluePrompt',
+  input: {
+    schema: z.object({
+      cardName: z.string().describe('The name of the card for which to generate clues.'),
+      currentClueNumber: z.number().describe('The current clue number (1-10).'),
+    }),
+  },
+  output: {
+    schema: z.object({
+      clue: z.string().describe('The generated clue for the card.'),
+    }),
+  },
+  prompt: `You are the clue master for the game Perfil. Your job is to provide a clue about the card to help the players guess the card. The difficulty of the clue should increase with the clue number. The card name is: {{{cardName}}}. This is clue number {{{currentClueNumber}}}. Provide the clue in a single short sentence.  Do not reveal the answer. The response should just be the clue itself, nothing more.`,
+});
+
+const generateCluesFlow = ai.defineFlow<
+  typeof GenerateCluesInputSchema,
+  typeof GenerateCluesOutputSchema
+>(
+  {
+    name: 'generateCluesFlow',
+    inputSchema: GenerateCluesInputSchema,
+    outputSchema: GenerateCluesOutputSchema,
+  },
+  async input => {
+    const {output} = await cluePrompt(input);
+    return output!;
+  }
+);
