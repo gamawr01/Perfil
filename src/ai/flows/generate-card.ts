@@ -1,4 +1,3 @@
-
 // src/ai/flows/generate-card.ts
 'use server';
 
@@ -26,6 +25,7 @@ export type GenerateCardInput = z.infer<typeof GenerateCardInputSchema>;
 const GenerateCardOutputSchema = z.object({
   cardId: z.string().uuid().describe('Um identificador UUID único para a carta.'),
   topic: z.string().describe('O tópico da carta, confirmando a categoria de entrada.'),
+  answerType: z.string().describe('O tipo da resposta (ex: Pessoa, Lugar, Coisa, Evento, Conceito, Filme, Livro).'), // Added answerType
   clues: z
     .array(z.string())
     .min(1) // Garante pelo menos uma dica
@@ -53,11 +53,10 @@ const generateCardPrompt = ai.definePrompt({
     }),
   },
   output: {
-    // Ensure the output schema includes the cardId but relies on the input cardId
-     // Removed format: uuid from cardId here as it's not supported by the API for response schemas
      schema: z.object({
        cardId: z.string().describe('O identificador UUID único fornecido para a carta.'),
        topic: z.string().describe('O tópico da carta, correspondendo à categoria de entrada.'),
+       answerType: z.string().describe('O tipo da resposta (ex: Pessoa, Lugar, Coisa, Evento, Conceito, Filme, Livro).'), // Added answerType to output schema description
        clues: z
          .array(z.string())
          .min(1)
@@ -65,12 +64,12 @@ const generateCardPrompt = ai.definePrompt({
        answer: z.string().nonempty().describe('A resposta específica e concisa para a carta.'),
      }),
   },
-  // Updated Prompt (Translated & Enhanced for Variety and Difficulty):
+  // Updated Prompt (Translated & Enhanced for Variety, Difficulty, and Answer Type):
   prompt: `Você é um designer de jogos experiente criando cartas para o jogo de adivinhação "Perfil Online".
 Sua tarefa é gerar uma carta ÚNICA e envolvente com base no tópico e na dificuldade fornecidos.
 
 **Instruções:**
-1.  **Determine a Resposta:** Escolha uma pessoa, lugar, coisa, conceito ou evento específico que se encaixe na categoria: **{{{topic}}}** e no nível de dificuldade: **{{{difficulty}}}**. Esta será a resposta da carta.
+1.  **Determine a Resposta:** Escolha uma pessoa, lugar, coisa, conceito, evento, filme, livro, etc. específico que se encaixe na categoria: **{{{topic}}}** e no nível de dificuldade: **{{{difficulty}}}**. Esta será a resposta da carta.
     *   **Critério de Dificuldade:**
         *   **Fácil:** Escolha respostas muito conhecidas, populares e fáceis de identificar dentro do tópico.
         *   **Médio:** Escolha respostas conhecidas, mas talvez não as mais óbvias. Pode exigir um pouco mais de conhecimento específico.
@@ -79,11 +78,12 @@ Sua tarefa é gerar uma carta ÚNICA e envolvente com base no tópico e na dific
     *   **Incentivo à Variedade:** **Procure por respostas mais específicas, menos óbvias ou de nicho dentro do tópico e dificuldade fornecidos.** Evite as respostas mais clichês ou os primeiros exemplos que vêm à mente. Queremos variedade entre as cartas geradas ao longo do tempo.
     *   **Exemplo de Pensamento (Tópico: Filmes, Dificuldade: Difícil):** Em vez de "O Poderoso Chefão", considere "Stalker (1979)", "Primer (2004)" ou um filme experimental/cult específico.
     *   **Exemplo de Pensamento (Tópico: Ciência, Dificuldade: Fácil):** "Gravidade" ou "Fotossíntese" são adequados.
-2.  **Gere Dicas:** Crie exatamente **{{{numClues}}}** dicas para a resposta.
+2.  **Determine o Tipo da Resposta:** Classifique a resposta que você escolheu em uma categoria geral. Use um termo simples e direto como 'Pessoa', 'Lugar', 'Coisa', 'Evento', 'Conceito', 'Filme', 'Livro', 'Animal', 'Comida', etc. Defina o campo 'answerType' com esta classificação.
+3.  **Gere Dicas:** Crie exatamente **{{{numClues}}}** dicas para a resposta.
     *   **Progressão de Dificuldade das Dicas:** As dicas DEVEM começar muito difíceis/obscuras (Dica 1) e progressivamente ficar mais fáceis. A Dica {{{numClues}}} deve tornar a resposta bastante óbvia, mas ainda exigir raciocínio. A dificuldade geral das dicas deve refletir a dificuldade **{{{difficulty}}}** selecionada (dicas mais obscuras no início para difícil, mais diretas no final para fácil).
     *   **Conteúdo da Dica:** As dicas devem ser factuais, interessantes e sugerir a resposta sem revelá-la muito cedo. Evite perguntas de sim/não ou dicas excessivamente diretas nas primeiras dicas, especialmente para dificuldades mais altas.
     *   **Clareza:** Cada dica deve ser uma frase única e clara.
-3.  **Formate a Saída:** Estruture sua resposta como um objeto JSON correspondente ao esquema de saída. Use o UUID fornecido para o 'cardId'.
+4.  **Formate a Saída:** Estruture sua resposta como um objeto JSON correspondente ao esquema de saída. Use o UUID fornecido para o 'cardId'. Certifique-se de incluir o campo 'answerType' com a classificação determinada na Etapa 2.
 
 **Tópico de Entrada:** {{{topic}}}
 **Dificuldade de Entrada:** {{{difficulty}}}
@@ -92,12 +92,13 @@ Sua tarefa é gerar uma carta ÚNICA e envolvente com base no tópico e na dific
 
 **Exemplo (Tópico: Ciência, Dificuldade: Médio):**
 Resposta: Tardígrado (Urso d'água)
+Tipo da Resposta: Animal
 Dica 1: Sou um organismo microscópico conhecido pela minha resistência extrema.
 Dica 2: Posso entrar em um estado de criptobiose para sobreviver a condições ambientais adversas.
 ...
 Dica 10: Sou frequentemente chamado de 'urso d'água' devido à minha aparência segmentada e capacidade de sobreviver em ambientes aquáticos.
 
-**Gere a carta agora, focando em uma resposta adequada à dificuldade e menos comum, se apropriado.**
+**Gere a carta agora, focando em uma resposta adequada à dificuldade, menos comum se apropriado, e incluindo o tipo da resposta.**
 `,
 });
 
@@ -145,9 +146,13 @@ const generateCardFlow = ai.defineFlow<
          output.cardId = input.cardId;
      }
 
-
     // Validate the final output against the strict GenerateCardOutputSchema
     try {
+        // Ensure answerType is present, provide a default if missing (should not happen ideally)
+        if (!output.answerType) {
+            console.warn("IA não forneceu 'answerType'. Usando 'Desconhecido'.");
+            output.answerType = 'Desconhecido';
+        }
         return GenerateCardOutputSchema.parse(output);
     } catch (validationError) {
         // Translated error
@@ -156,4 +161,3 @@ const generateCardFlow = ai.defineFlow<
     }
   }
 );
-

@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -10,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, HelpCircle, Trophy, ChevronRight, SkipForward, BarChart } from 'lucide-react'; // Added BarChart icon
+import { Loader2, HelpCircle, Trophy, ChevronRight, SkipForward, BarChart, Tag } from 'lucide-react'; // Added Tag icon
 import { PlayerScores } from './player-scores';
 import { type GenerateCardOutput } from '@/ai/flows/generate-card';
 import { type GenerateCluesOutput } from '@/ai/flows/generate-clues';
@@ -33,8 +32,8 @@ interface Player {
 interface GameBoardProps {
   category: string;
   playerCount: number;
-  difficulty: string; // Added difficulty prop
-  onReturnToSetup: () => void; // Adiciona prop para lidar com o retorno à configuração
+  difficulty: string;
+  onReturnToSetup: () => void;
 }
 
 // Helper to format difficulty string
@@ -347,9 +346,13 @@ export default function GameBoard({ category, playerCount, difficulty, onReturnT
              )}
           </CardTitle>
           {gameStarted && currentCard && (
-            <CardDescription className="flex items-center gap-4"> {/* Use flex for horizontal layout */}
-                <span>Tópico: {currentCard.topic} | Categoria: {category}</span>
-                <span className="flex items-center gap-1"> {/* Flex for icon and text */}
+            <CardDescription className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm"> {/* Use flex-wrap and gap */}
+                <span>Tópico: {currentCard.topic}</span>
+                <span className="flex items-center gap-1">
+                    <Tag className="h-4 w-4" /> {/* Answer Type icon */}
+                    Tipo: {currentCard.answerType || 'Desconhecido'}
+                </span>
+                <span className="flex items-center gap-1">
                     <BarChart className="h-4 w-4" /> {/* Difficulty icon */}
                     Dificuldade: {formatDifficulty(difficulty)}
                 </span>
@@ -461,4 +464,3 @@ export default function GameBoard({ category, playerCount, difficulty, onReturnT
     </div>
   );
 }
-
