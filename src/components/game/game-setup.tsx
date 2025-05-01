@@ -7,19 +7,25 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, Play } from 'lucide-react';
+import { Settings, Play, BarChart } from 'lucide-react'; // Added BarChart for difficulty icon
 
 // Translated Categories
 const CATEGORIES = ['Conhecimentos Gerais', 'Filmes', 'História', 'Ciência', 'Esportes', 'Tecnologia', 'Geografia'];
 const PLAYER_COUNTS = [1, 2, 3, 4];
+const DIFFICULTIES = [
+    { value: 'facil', label: 'Fácil' },
+    { value: 'medio', label: 'Médio' },
+    { value: 'dificil', label: 'Difícil' },
+];
 
 export default function GameSetup() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedPlayerCount, setSelectedPlayerCount] = useState<number | null>(null);
+  const [selectedDifficulty, setSelectedDifficulty] = useState<string | null>(null); // Added state for difficulty
   const [isGameStarted, setIsGameStarted] = useState(false);
 
   const handleStartGame = () => {
-    if (selectedCategory && selectedPlayerCount !== null) {
+    if (selectedCategory && selectedPlayerCount !== null && selectedDifficulty !== null) { // Added check for difficulty
       setIsGameStarted(true);
     }
   };
@@ -30,12 +36,13 @@ export default function GameSetup() {
     // Optionally reset selections, or keep them for quicker restart
     // setSelectedCategory(null);
     // setSelectedPlayerCount(null);
+    // setSelectedDifficulty(null);
   };
 
 
-  if (isGameStarted && selectedCategory && selectedPlayerCount !== null) {
-    // Pass the handleReturnToSetup function to GameBoard
-    return <GameBoard category={selectedCategory} playerCount={selectedPlayerCount} onReturnToSetup={handleReturnToSetup} />;
+  if (isGameStarted && selectedCategory && selectedPlayerCount !== null && selectedDifficulty !== null) {
+    // Pass the handleReturnToSetup function and difficulty to GameBoard
+    return <GameBoard category={selectedCategory} playerCount={selectedPlayerCount} difficulty={selectedDifficulty} onReturnToSetup={handleReturnToSetup} />;
   }
 
   return (
@@ -85,9 +92,30 @@ export default function GameSetup() {
           </Select>
         </div>
 
+        {/* Difficulty Selection Dropdown */}
+        <div className="space-y-2">
+          <Label htmlFor="difficulty-select">Selecionar Dificuldade</Label> {/* Translated */}
+          <Select
+            onValueChange={(value) => setSelectedDifficulty(value)}
+            value={selectedDifficulty ?? undefined}
+          >
+            <SelectTrigger id="difficulty-select" className="w-full">
+              <SelectValue placeholder="Selecione a dificuldade..." /> {/* Translated */}
+            </SelectTrigger>
+            <SelectContent>
+              {DIFFICULTIES.map((difficulty) => (
+                <SelectItem key={difficulty.value} value={difficulty.value}>
+                  {difficulty.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+
         <Button
           onClick={handleStartGame}
-          disabled={!selectedCategory || selectedPlayerCount === null}
+          disabled={!selectedCategory || selectedPlayerCount === null || selectedDifficulty === null} // Added difficulty check to disabled state
           className="w-full"
           size="lg"
         >

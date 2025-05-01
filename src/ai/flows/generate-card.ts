@@ -17,6 +17,7 @@ import { v4 as uuidv4 } from 'uuid'; // Import uuid library
 const GenerateCardInputSchema = z.object({
   topic: z.string().describe('A categoria do tópico para a carta a ser gerada (ex: Filmes, História).'),
   numClues: z.number().int().min(1).max(20).default(10).describe('O número de dicas a gerar para a carta (normalmente 10).'),
+  difficulty: z.enum(['facil', 'medio', 'dificil']).default('medio').describe('O nível de dificuldade da carta e das dicas (facil, medio, dificil).'),
   // Optional: Add previously generated answers to guide uniqueness, though direct prompting is often better.
   // previousAnswers: z.array(z.string()).optional().describe('Uma lista de respostas já usadas nesta sessão de jogo para evitar repetição.')
 });
@@ -46,6 +47,7 @@ const generateCardPrompt = ai.definePrompt({
     schema: z.object({
       topic: z.string().describe('A categoria do tópico para a carta a ser gerada (ex: Filmes, História).'),
       numClues: z.number().int().min(1).max(20).describe('O número de dicas a gerar para a carta (normalmente 10).'),
+      difficulty: z.enum(['facil', 'medio', 'dificil']).describe('O nível de dificuldade da carta e das dicas (facil, medio, dificil).'),
       cardId: z.string().uuid().describe('O UUID pré-gerado para esta carta.'), // Input schema expects the cardId
       // previousAnswers: z.array(z.string()).optional().describe('Uma lista de respostas já usadas.') // Uncomment if using this approach
     }),
@@ -63,50 +65,55 @@ const generateCardPrompt = ai.definePrompt({
        answer: z.string().nonempty().describe('A resposta específica e concisa para a carta.'),
      }),
   },
-  // Updated Prompt (Translated & Enhanced for Variety):
+  // Updated Prompt (Translated & Enhanced for Variety and Difficulty):
   prompt: `Você é um designer de jogos experiente criando cartas para o jogo de adivinhação "Perfil Online".
-Sua tarefa é gerar uma carta ÚNICA e envolvente com base no tópico fornecido.
+Sua tarefa é gerar uma carta ÚNICA e envolvente com base no tópico e na dificuldade fornecidos.
 
 **Instruções:**
-1.  **Determine a Resposta:** Escolha uma pessoa, lugar, coisa, conceito ou evento específico que se encaixe na categoria: **{{{topic}}}**. Esta será a resposta da carta.
-    *   **Critério de Singularidade:** **Crucialmente, garanta que esta resposta seja distinta e NÃO excessivamente comum ou facilmente adivinhável apenas pelo tópico.**
-    *   **Incentivo à Variedade:** **Procure por respostas mais específicas, menos óbvias ou de nicho dentro do tópico fornecido.** Evite as respostas mais clichês ou os primeiros exemplos que vêm à mente para esta categoria. Queremos variedade entre as cartas geradas ao longo do tempo.
-    *   **Exemplo de Pensamento (Tópico: Filmes):** Em vez de "O Poderoso Chefão" ou "Titanic", considere "Amélie", "Oldboy" ou um filme cult menos conhecido, mas ainda identificável.
-    *   **Exemplo de Pensamento (Tópico: Ciência):** Em vez de "Gravidade" ou "Eletricidade", considere "Efeito Leidenfrost", "Bósons W e Z" ou uma descoberta científica específica.
+1.  **Determine a Resposta:** Escolha uma pessoa, lugar, coisa, conceito ou evento específico que se encaixe na categoria: **{{{topic}}}** e no nível de dificuldade: **{{{difficulty}}}**. Esta será a resposta da carta.
+    *   **Critério de Dificuldade:**
+        *   **Fácil:** Escolha respostas muito conhecidas, populares e fáceis de identificar dentro do tópico.
+        *   **Médio:** Escolha respostas conhecidas, mas talvez não as mais óbvias. Pode exigir um pouco mais de conhecimento específico.
+        *   **Difícil:** Escolha respostas mais obscuras, de nicho, técnicas ou menos conhecidas dentro do tópico. Exigirá conhecimento especializado ou raciocínio dedutivo mais profundo.
+    *   **Critério de Singularidade:** **Crucialmente, garanta que esta resposta seja distinta e NÃO excessivamente comum ou facilmente adivinhável apenas pelo tópico.** Mesmo no nível fácil, tente variar.
+    *   **Incentivo à Variedade:** **Procure por respostas mais específicas, menos óbvias ou de nicho dentro do tópico e dificuldade fornecidos.** Evite as respostas mais clichês ou os primeiros exemplos que vêm à mente. Queremos variedade entre as cartas geradas ao longo do tempo.
+    *   **Exemplo de Pensamento (Tópico: Filmes, Dificuldade: Difícil):** Em vez de "O Poderoso Chefão", considere "Stalker (1979)", "Primer (2004)" ou um filme experimental/cult específico.
+    *   **Exemplo de Pensamento (Tópico: Ciência, Dificuldade: Fácil):** "Gravidade" ou "Fotossíntese" são adequados.
 2.  **Gere Dicas:** Crie exatamente **{{{numClues}}}** dicas para a resposta.
-    *   **Progressão de Dificuldade:** As dicas DEVEM começar muito difíceis/obscuras (Dica 1) e progressivamente ficar mais fáceis. A Dica {{{numClues}}} deve tornar a resposta bastante óbvia, mas ainda exigir raciocínio.
-    *   **Conteúdo da Dica:** As dicas devem ser factuais, interessantes e sugerir a resposta sem revelá-la muito cedo. Evite perguntas de sim/não ou dicas excessivamente diretas nas primeiras dicas.
+    *   **Progressão de Dificuldade das Dicas:** As dicas DEVEM começar muito difíceis/obscuras (Dica 1) e progressivamente ficar mais fáceis. A Dica {{{numClues}}} deve tornar a resposta bastante óbvia, mas ainda exigir raciocínio. A dificuldade geral das dicas deve refletir a dificuldade **{{{difficulty}}}** selecionada (dicas mais obscuras no início para difícil, mais diretas no final para fácil).
+    *   **Conteúdo da Dica:** As dicas devem ser factuais, interessantes e sugerir a resposta sem revelá-la muito cedo. Evite perguntas de sim/não ou dicas excessivamente diretas nas primeiras dicas, especialmente para dificuldades mais altas.
     *   **Clareza:** Cada dica deve ser uma frase única e clara.
 3.  **Formate a Saída:** Estruture sua resposta como um objeto JSON correspondente ao esquema de saída. Use o UUID fornecido para o 'cardId'.
 
 **Tópico de Entrada:** {{{topic}}}
+**Dificuldade de Entrada:** {{{difficulty}}}
 **Número de Dicas:** {{{numClues}}}
 **ID da Carta:** {{{cardId}}}
 
-**Exemplo (Tópico: Ciência - Buscando variedade):**
+**Exemplo (Tópico: Ciência, Dificuldade: Médio):**
 Resposta: Tardígrado (Urso d'água)
-Dica 1: Sou considerado um extremófilo.
-Dica 2: Posso sobreviver em condições que seriam letais para a maioria das outras formas de vida conhecidas, incluindo o vácuo do espaço.
+Dica 1: Sou um organismo microscópico conhecido pela minha resistência extrema.
+Dica 2: Posso entrar em um estado de criptobiose para sobreviver a condições ambientais adversas.
 ...
-Dica 10: Apesar do meu tamanho microscópico, sou conhecido pela minha incrível resiliência e aparência segmentada, quase como um urso.
+Dica 10: Sou frequentemente chamado de 'urso d'água' devido à minha aparência segmentada e capacidade de sobreviver em ambientes aquáticos.
 
-**Gere a carta agora, focando em uma resposta interessante e menos comum.**
+**Gere a carta agora, focando em uma resposta adequada à dificuldade e menos comum, se apropriado.**
 `,
 });
 
 
 const generateCardFlow = ai.defineFlow<
-  // Input now includes cardId
+  // Input now includes cardId and difficulty
   z.infer<typeof generateCardPrompt.inputSchema>,
   typeof GenerateCardOutputSchema
 >(
   {
     name: 'generateCardFlow',
-    inputSchema: generateCardPrompt.inputSchema, // Use the prompt's input schema which includes cardId
+    inputSchema: generateCardPrompt.inputSchema, // Use the prompt's input schema which includes cardId and difficulty
     outputSchema: GenerateCardOutputSchema, // Use the main output schema for TS type safety
   },
   async input => {
-    // The input already contains the pre-generated cardId
+    // The input already contains the pre-generated cardId and the selected difficulty
     const {output} = await generateCardPrompt(input);
 
     if (!output) {

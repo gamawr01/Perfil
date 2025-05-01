@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, HelpCircle, Trophy, ChevronRight, SkipForward } from 'lucide-react';
+import { Loader2, HelpCircle, Trophy, ChevronRight, SkipForward, BarChart } from 'lucide-react'; // Added BarChart icon
 import { PlayerScores } from './player-scores';
 import { type GenerateCardOutput } from '@/ai/flows/generate-card';
 import { type GenerateCluesOutput } from '@/ai/flows/generate-clues';
@@ -33,10 +33,22 @@ interface Player {
 interface GameBoardProps {
   category: string;
   playerCount: number;
+  difficulty: string; // Added difficulty prop
   onReturnToSetup: () => void; // Adiciona prop para lidar com o retorno à configuração
 }
 
-export default function GameBoard({ category, playerCount, onReturnToSetup }: GameBoardProps) {
+// Helper to format difficulty string
+const formatDifficulty = (difficulty: string): string => {
+    switch (difficulty) {
+        case 'facil': return 'Fácil';
+        case 'medio': return 'Médio';
+        case 'dificil': return 'Difícil';
+        default: return difficulty;
+    }
+};
+
+
+export default function GameBoard({ category, playerCount, difficulty, onReturnToSetup }: GameBoardProps) {
   const [gameStarted, setGameStarted] = useState(false);
   const [loadingCard, setLoadingCard] = useState(false);
   const [loadingClue, setLoadingClue] = useState(false);
@@ -57,8 +69,8 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
     let attempts = 0;
     while (attempts < MAX_GENERATION_ATTEMPTS) {
       attempts++;
-      // Passa a categoria para a IA
-      const card = await generateCard({ topic: category, numClues: NUM_CLUES });
+      // Passa a categoria e dificuldade para a IA
+      const card = await generateCard({ topic: category, numClues: NUM_CLUES, difficulty: difficulty });
       // Normaliza a resposta antes de verificar a unicidade
       const normalizedAnswer = normalizeAnswer(card.answer);
       if (!generatedAnswers.has(normalizedAnswer)) {
@@ -73,7 +85,7 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
       });
     }
     throw new Error(`Falha ao gerar uma carta única após ${MAX_GENERATION_ATTEMPTS} tentativas.`);
-  }, [category, generatedAnswers, toast]); // Dependências adicionadas
+  }, [category, difficulty, generatedAnswers, toast]); // Dependências adicionadas (difficulty)
 
   // revealNextClue agora aceita os parâmetros necessários diretamente
   const revealNextClue = useCallback(async (cardAnswer: string | undefined, clueIdx: number, allClues: string[] | undefined) => {
@@ -164,7 +176,7 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
        setLoadingCard(false);
      }
    // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [category, loadingCard, revealNextClue, toast, generateUniqueCard]); // Dependências para handleStartGame
+   }, [category, difficulty, loadingCard, revealNextClue, toast, generateUniqueCard]); // Dependências para handleStartGame (added difficulty)
 
 
   // Inicializa jogadores com base na prop playerCount
@@ -196,7 +208,7 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
     setRoundStartingPlayerIndex(nextPlayerIndex); // Atualiza quem inicia esta nova rodada
 
     try {
-      // Usa a prop category aqui e gera carta única
+      // Usa a prop category e difficulty aqui e gera carta única
       const card = await generateUniqueCard();
       setCurrentCard(card);
       setRevealedClues([]);
@@ -272,7 +284,8 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
     } else {
       toast({
         title: 'Palpite Incorreto',
-        description: `Desculpe ${currentPlayer.name}, não é isso. Distância: ${distance}, Limite: ${threshold}`, // Opcional: mostra a distância/limite para depuração
+        description: `Desculpe ${currentPlayer.name}, não é isso.`, // Simplified message
+        // description: `Desculpe ${currentPlayer.name}, não é isso. Distância: ${distance}, Limite: ${threshold}`, // Opcional: mostra a distância/limite para depuração
         variant: 'destructive',
         className: 'animate-shake', // Mantém a animação de tremer
       });
@@ -334,16 +347,22 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
              )}
           </CardTitle>
           {gameStarted && currentCard && (
-            <CardDescription>Tópico: {currentCard.topic} | Categoria: {category}</CardDescription>
+            <CardDescription className="flex items-center gap-4"> {/* Use flex for horizontal layout */}
+                <span>Tópico: {currentCard.topic} | Categoria: {category}</span>
+                <span className="flex items-center gap-1"> {/* Flex for icon and text */}
+                    <BarChart className="h-4 w-4" /> {/* Difficulty icon */}
+                    Dificuldade: {formatDifficulty(difficulty)}
+                </span>
+            </CardDescription>
           )}
            {!gameStarted && !loadingCard && (
               <CardDescription>Configurando o jogo...</CardDescription>
            )}
            {loadingCard && !gameStarted && (
-              <CardDescription>Gerando a primeira carta para {category}...</CardDescription>
+              <CardDescription>Gerando a primeira carta para {category} (Dificuldade: {formatDifficulty(difficulty)})...</CardDescription>
            )}
            {loadingCard && gameStarted && (
-               <CardDescription>Gerando a próxima carta para {category}...</CardDescription>
+               <CardDescription>Gerando a próxima carta para {category} (Dificuldade: {formatDifficulty(difficulty)})...</CardDescription>
            )}
         </CardHeader>
         <CardContent className="space-y-4 flex-grow">
@@ -442,3 +461,4 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
     </div>
   );
 }
+
