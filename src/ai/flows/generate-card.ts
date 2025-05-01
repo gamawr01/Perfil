@@ -24,14 +24,14 @@ const GenerateCardInputSchema = z.object({
 export type GenerateCardInput = z.infer<typeof GenerateCardInputSchema>;
 
 const GenerateCardOutputSchema = z.object({
-  cardId: z.string().describe('Um identificador UUID único para a carta.'), // Removed .uuid() validation as the model might not return a perfect UUID string
+  cardId: z.string().describe('Um identificador UUID único para a carta.'), // Kept as string, UUID generated before flow call
   topic: z.string().describe('O tópico da carta, confirmando a categoria de entrada.'),
   answerType: z.string().describe('O tipo da resposta (ex: Pessoa, Lugar, Coisa, Evento, Conceito, Filme, Livro).'), // Added answerType
   clues: z
     .array(z.string())
-    .min(1) // Garante pelo menos uma dica
-    .max(20) // Garante no máximo 20 dicas
-    .describe('Um array de dicas para a carta, ordenadas da mais difícil (índice 0) para a mais fácil.'),
+    .min(20) // Ensure exactly 20 clues
+    .max(20) // Ensure exactly 20 clues
+    .describe('Um array de exatamente 20 dicas para a carta, ordenadas da mais difícil (índice 0) para a mais fácil.'),
   answer: z.string().nonempty().describe('A resposta específica e concisa para a carta (pessoa, lugar, coisa, evento, etc.).'),
 });
 export type GenerateCardOutput = z.infer<typeof GenerateCardOutputSchema>;
@@ -56,21 +56,22 @@ const generateCardPrompt = ai.definePrompt({
     }),
   },
   output: {
+     // Removed format: 'uuid' to avoid potential validation errors from the model. UUID is generated externally.
      schema: z.object({
        cardId: z.string().describe('O identificador único fornecido para a carta.'), // Output description expects string
        topic: z.string().describe('O tópico da carta, correspondendo à categoria de entrada.'),
        answerType: z.string().describe('O tipo da resposta (ex: Pessoa, Lugar, Coisa, Evento, Conceito, Filme, Livro).'), // Added answerType to output schema description
        clues: z
          .array(z.string())
-         .min(1)
-         .max(20) // Added max(20)
-         .describe('Um array de dicas (exatamente 20), ordenadas da mais difícil (índice 0) para a mais fácil.'),
+         .min(20) // Ensure exactly 20 clues in output schema
+         .max(20) // Ensure exactly 20 clues in output schema
+         .describe('Um array de exatamente 20 dicas, ordenadas da mais difícil (índice 0) para a mais fácil.'),
        answer: z.string().nonempty().describe('A resposta específica e concisa para a carta.'),
      }),
   },
   // Updated Prompt (Translated & Enhanced for Variety, Difficulty, Answer Type, and 20 Clues):
   prompt: `Você é um designer de jogos experiente criando cartas para o jogo de adivinhação "Perfil Online".
-Sua tarefa é gerar uma carta ÚNICA e envolvente com base no tópico e na dificuldade fornecidos, contendo exatamente 20 dicas.
+Sua tarefa é gerar uma carta ÚNICA e envolvente com base no tópico e na dificuldade fornecidos, contendo **exatamente 20 dicas**.
 
 **Instruções:**
 1.  **Determine a Resposta:** Escolha uma pessoa, lugar, coisa, conceito, evento, filme, livro, etc. específico que se encaixe na categoria: **{{{topic}}}** e no nível de dificuldade: **{{{difficulty}}}**. Esta será a resposta da carta.
@@ -78,16 +79,16 @@ Sua tarefa é gerar uma carta ÚNICA e envolvente com base no tópico e na dific
         *   **Fácil:** Escolha respostas muito conhecidas, populares e fáceis de identificar dentro do tópico.
         *   **Médio:** Escolha respostas conhecidas, mas talvez não as mais óbvias. Pode exigir um pouco mais de conhecimento específico.
         *   **Difícil:** Escolha respostas mais obscuras, de nicho, técnicas ou menos conhecidas dentro do tópico. Exigirá conhecimento especializado ou raciocínio dedutivo mais profundo.
-    *   **Critério de Singularidade:** **Crucialmente, garanta que esta resposta seja distinta e NÃO excessivamente comum ou facilmente adivinhável apenas pelo tópico.** Mesmo no nível fácil, tente variar.
-    *   **Incentivo à Variedade:** **Procure por respostas mais específicas, menos óbvias ou de nicho dentro do tópico e dificuldade fornecidos.** Evite as respostas mais clichês ou os primeiros exemplos que vêm à mente. Queremos variedade entre as cartas geradas ao longo do tempo.
-    *   **Exemplo de Pensamento (Tópico: Filmes, Dificuldade: Difícil):** Em vez de "O Poderoso Chefão", considere "Stalker (1979)", "Primer (2004)" ou um filme experimental/cult específico.
-    *   **Exemplo de Pensamento (Tópico: Ciência, Dificuldade: Fácil):** "Gravidade" ou "Fotossíntese" são adequados.
-2.  **Determine o Tipo da Resposta:** Classifique a resposta que você escolheu em uma categoria geral. Use um termo simples e direto como 'Pessoa', 'Lugar', 'Coisa', 'Evento', 'Conceito', 'Filme', 'Livro', 'Animal', 'Comida', etc. Defina o campo 'answerType' com esta classificação.
+    *   **Critério de Singularidade e Variedade:** **EXTREMAMENTE IMPORTANTE: EVITE RESPOSTAS MUITO COMUNS, CLICHÊS OU AS PRIMEIRAS QUE VÊM À MENTE.** O objetivo é ter uma GRANDE VARIEDADE de cartas ao longo de MÚLTIPLOS JOGOS. Mesmo no nível 'Fácil', tente encontrar alternativas menos óbvias. **Seja criativo e procure por respostas mais específicas ou de nicho dentro do tópico e dificuldade fornecidos.** Não repita respostas que você já possa ter dado em solicitações anteriores, mesmo que para dificuldades diferentes.
+    *   **Exemplo de Pensamento (Tópico: Filmes, Dificuldade: Difícil):** Em vez de "O Poderoso Chefão" ou "Matrix", considere filmes cult como "Stalker (1979)", "Primer (2004)", um filme experimental específico, ou um filme estrangeiro menos conhecido no Brasil.
+    *   **Exemplo de Pensamento (Tópico: Ciência, Dificuldade: Fácil):** "Gravidade" ou "Fotossíntese" são aceitáveis, mas considere também "Buraco Negro", "DNA", "Evolução", "Antibiótico". Varie!
+    *   **Exemplo de Pensamento (Tópico: História, Dificuldade: Médio):** Em vez de "Revolução Francesa", talvez "Guerra dos Cem Anos" ou "A Rota da Seda".
+2.  **Determine o Tipo da Resposta:** Classifique a resposta que você escolheu em uma categoria geral. Use um termo simples e direto como 'Pessoa', 'Lugar', 'Coisa', 'Evento', 'Conceito', 'Filme', 'Livro', 'Animal', 'Comida', 'Personagem Fictício', 'Obra de Arte', etc. Defina o campo 'answerType' com esta classificação.
 3.  **Gere Dicas:** Crie **exatamente 20** dicas para a resposta.
-    *   **Progressão de Dificuldade das Dicas:** As dicas DEVEM começar muito difíceis/obscuras (Dica 1) e progressivamente ficar mais fáceis. A Dica 20 deve tornar a resposta bastante óbvia, mas ainda exigir raciocínio. A dificuldade geral das dicas deve refletir a dificuldade **{{{difficulty}}}** selecionada (dicas mais obscuras no início para difícil, mais diretas no final para fácil).
+    *   **Progressão de Dificuldade das Dicas:** As dicas DEVEM começar muito difíceis/obscuras (Dica 1) e progressivamente ficar mais fáceis. A Dica 20 deve tornar a resposta bastante óbvia, mas ainda exigir um mínimo de raciocínio. A dificuldade geral das dicas deve refletir a dificuldade **{{{difficulty}}}** selecionada (dicas mais obscuras no início para difícil, mais diretas no final para fácil).
     *   **Conteúdo da Dica:** As dicas devem ser factuais, interessantes e sugerir a resposta sem revelá-la muito cedo. Evite perguntas de sim/não ou dicas excessivamente diretas nas primeiras dicas, especialmente para dificuldades mais altas.
     *   **Clareza:** Cada dica deve ser uma frase única e clara.
-4.  **Formate a Saída:** Estruture sua resposta como um objeto JSON correspondente ao esquema de saída. Use o UUID fornecido para o 'cardId'. Certifique-se de incluir o campo 'answerType' com a classificação determinada na Etapa 2 e garantir que existam exatamente 20 dicas no array 'clues'.
+4.  **Formate a Saída:** Estruture sua resposta como um objeto JSON correspondente ao esquema de saída. Use o UUID fornecido para o 'cardId'. Certifique-se de incluir o campo 'answerType' com a classificação determinada na Etapa 2 e garantir que existam **exatamente 20 dicas** no array 'clues'.
 
 **Tópico de Entrada:** {{{topic}}}
 **Dificuldade de Entrada:** {{{difficulty}}}
@@ -99,11 +100,11 @@ Resposta: Tardígrado (Urso d'água)
 Tipo da Resposta: Animal
 Dica 1: Sou um organismo microscópico conhecido pela minha resistência extrema.
 Dica 2: Posso entrar em um estado de criptobiose para sobreviver a condições ambientais adversas.
-...
+... (mais 16 dicas de dificuldade crescente)
 Dica 19: Sou frequentemente comparado a um animal mamífero que hiberna.
 Dica 20: Sou frequentemente chamado de 'urso d'água' devido à minha aparência segmentada e capacidade de sobreviver em ambientes aquáticos.
 
-**Gere a carta agora, focando em uma resposta adequada à dificuldade, menos comum se apropriado, incluindo o tipo da resposta e exatamente 20 dicas ordenadas.**
+**Gere a carta agora, focando em uma resposta MENOS COMUM E MAIS VARIADA, adequada à dificuldade, incluindo o tipo da resposta e exatamente 20 dicas ordenadas.**
 `,
 });
 
@@ -138,10 +139,11 @@ const generateCardFlow = ai.defineFlow<
           // Pad with placeholder - might need better handling
           while(output.clues.length < expectedNumClues) {
                // Translated placeholder
-              output.clues.push("(Dica faltando)");
+              output.clues.push("(Dica faltando gerada pelo sistema)");
           }
       }
       // Consider throwing an error or retrying if strict count is required
+      // throw new Error(`A IA gerou ${output.clues.length} dicas, mas eram esperadas ${expectedNumClues}.`);
     }
 
     // Ensure the returned cardId matches the input cardId (it should, as per prompt)
@@ -159,10 +161,12 @@ const generateCardFlow = ai.defineFlow<
             output.answerType = 'Desconhecido';
         }
         // Use parse to ensure the final output matches the schema, including the clue count check
-        return GenerateCardOutputSchema.parse(output);
+        const validatedOutput = GenerateCardOutputSchema.parse(output);
+        return validatedOutput;
     } catch (validationError) {
         // Translated error
         console.error("Saída da IA falhou na validação:", validationError);
+        console.error("Dados recebidos da IA:", output); // Log the problematic output
         throw new Error("A saída da IA não correspondeu ao formato esperado após a geração.");
     }
   }
