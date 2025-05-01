@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -14,6 +13,7 @@ import { Loader2, HelpCircle, Trophy, ChevronRight, SkipForward } from 'lucide-r
 import { PlayerScores } from './player-scores';
 import { type GenerateCardOutput } from '@/ai/flows/generate-card';
 import { type GenerateCluesOutput } from '@/ai/flows/generate-clues';
+import { normalizeAnswer } from '@/lib/string-utils'; // Import the normalization function
 
 const POINTS_PER_CLUE = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
 const NUM_CLUES = 10;
@@ -53,7 +53,8 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
     while (attempts < MAX_GENERATION_ATTEMPTS) {
       attempts++;
       const card = await generateCard({ topic: category, numClues: NUM_CLUES });
-      const normalizedAnswer = card.answer.toLowerCase().trim();
+      // Normalize the answer before checking for uniqueness
+      const normalizedAnswer = normalizeAnswer(card.answer);
       if (!generatedAnswers.has(normalizedAnswer)) {
         setGeneratedAnswers((prev) => new Set(prev).add(normalizedAnswer));
         return card;
@@ -222,8 +223,10 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
 
     setIsSubmitting(true); // Prevent double submission
 
-    const correctAnswer = currentCard.answer.toLowerCase().trim();
-    const playerGuess = guess.toLowerCase().trim();
+    // Normalize both the guess and the correct answer for comparison
+    const normalizedPlayerGuess = normalizeAnswer(guess);
+    const normalizedCorrectAnswer = normalizeAnswer(currentCard.answer);
+
     const currentPlayer = players[currentPlayerIndex]; // Ensure currentPlayerIndex is valid
 
     if (!currentPlayer) {
@@ -232,7 +235,7 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
       return; // Exit if player doesn't exist
     }
 
-    if (playerGuess === correctAnswer) {
+    if (normalizedPlayerGuess === normalizedCorrectAnswer) { // Use normalized strings for comparison
       const pointsAwarded = POINTS_PER_CLUE[Math.max(0, currentClueIndex - 1)]; // Index is 0-based for array access
       setPlayers((prevPlayers) =>
         prevPlayers.map((player) =>
@@ -241,6 +244,7 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
       );
       toast({
         title: 'Correct!',
+        // Display the original answer in the toast for clarity
         description: `${currentPlayer.name} guessed correctly and earned ${pointsAwarded} points! The answer was: ${currentCard.answer}`,
         variant: 'default',
         className: 'bg-accent text-accent-foreground',
