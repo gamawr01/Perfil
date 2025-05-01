@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, HelpCircle, Trophy, ChevronRight, SkipForward } from 'lucide-react'; // Added SkipForward
+import { Loader2, HelpCircle, Trophy, ChevronRight, SkipForward } from 'lucide-react';
 import { PlayerScores } from './player-scores';
 import { type GenerateCardOutput } from '@/ai/flows/generate-card';
 import { type GenerateCluesOutput } from '@/ai/flows/generate-clues';
@@ -24,7 +24,12 @@ interface Player {
   score: number;
 }
 
-export default function GameBoard() {
+interface GameBoardProps {
+  category: string;
+  playerCount: number;
+}
+
+export default function GameBoard({ category, playerCount }: GameBoardProps) {
   const [gameStarted, setGameStarted] = useState(false);
   const [loadingCard, setLoadingCard] = useState(false);
   const [loadingClue, setLoadingClue] = useState(false);
@@ -33,14 +38,27 @@ export default function GameBoard() {
   const [currentClueIndex, setCurrentClueIndex] = useState(0);
   const [guess, setGuess] = useState('');
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
-  const [players, setPlayers] = useState<Player[]>([
-    { id: 'player1', name: 'Player 1', score: 0 },
-    { id: 'player2', name: 'Player 2', score: 0 },
-  ]); // Example players
+  const [players, setPlayers] = useState<Player[]>([]); // Initialize as empty
   const [gameOver, setGameOver] = useState(false); // Tracks if the current *round* is over
   const [isSubmitting, setIsSubmitting] = useState(false); // Track guess submission state
   const [roundStartingPlayerIndex, setRoundStartingPlayerIndex] = useState(0); // Track who started the current card round
   const { toast } = useToast();
+
+  // Initialize players based on playerCount prop
+  useEffect(() => {
+    const initialPlayers = Array.from({ length: playerCount }, (_, i) => ({
+      id: `player${i + 1}`,
+      name: `Player ${i + 1}`,
+      score: 0,
+    }));
+    setPlayers(initialPlayers);
+    // Automatically start the game once players are initialized
+    if (initialPlayers.length > 0) {
+      handleStartGame(initialPlayers); // Pass initial players to start game
+    }
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playerCount]); // Run only when playerCount changes (on initial mount)
+
 
   // revealNextClue now accepts necessary parameters directly
   const revealNextClue = useCallback(async (cardAnswer: string | undefined, clueIdx: number, allClues: string[] | undefined) => {
@@ -90,21 +108,30 @@ export default function GameBoard() {
   }, [toast, gameOver, loadingClue]); // Added loadingClue dependency
 
   // Function to start the very first game or restart entirely
-  const handleStartGame = async () => {
+  // Accepts initialPlayers from useEffect
+  const handleStartGame = useCallback(async (initialPlayers: Player[]) => {
+    if (loadingCard || initialPlayers.length === 0) return; // Check against initialPlayers
+
     setLoadingCard(true);
     setGameOver(false);
-    setPlayers(players.map(p => ({ ...p, score: 0 }))); // Reset scores for a new game
+    setPlayers(initialPlayers.map(p => ({ ...p, score: 0 }))); // Reset scores for a new game using initialPlayers
     setCurrentPlayerIndex(0); // Start with player 1
     setRoundStartingPlayerIndex(0); // Player 0 starts the game/round
     try {
-      const card = await generateCard({ topic: 'General Knowledge', numClues: NUM_CLUES });
+      // Use the category prop here
+      const card = await generateCard({ topic: category, numClues: NUM_CLUES });
       setCurrentCard(card);
       setRevealedClues([]);
       setCurrentClueIndex(0);
       setGuess('');
-      setGameStarted(true);
+      setGameStarted(true); // Set game as started
       // Reveal the first clue after card is set
-      revealNextClue(card.answer, 0, card.clues); // Pass necessary info
+      // Need to check card and card.answer before calling
+      if (card?.answer) {
+        revealNextClue(card.answer, 0, card.clues); // Pass necessary info
+      } else {
+         throw new Error("Generated card is missing answer.");
+      }
     } catch (error) {
       console.error('Error starting game:', error);
       toast({
@@ -116,7 +143,9 @@ export default function GameBoard() {
     } finally {
       setLoadingCard(false);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category, loadingCard, revealNextClue, toast]); // Dependencies for handleStartGame
+
 
   // Function to start the next round (new card, next player)
   const handleNextRound = async () => {
@@ -130,13 +159,19 @@ export default function GameBoard() {
     setRoundStartingPlayerIndex(nextPlayerIndex); // Update who starts this new round
 
     try {
-      const card = await generateCard({ topic: 'General Knowledge', numClues: NUM_CLUES });
+      // Use the category prop here
+      const card = await generateCard({ topic: category, numClues: NUM_CLUES });
       setCurrentCard(card);
       setRevealedClues([]);
       setCurrentClueIndex(0);
       setGuess('');
        // Reveal the first clue for the new round
-      revealNextClue(card.answer, 0, card.clues);
+      // Need to check card and card.answer before calling
+      if (card?.answer) {
+         revealNextClue(card.answer, 0, card.clues);
+      } else {
+          throw new Error("Generated card is missing answer.");
+      }
     } catch (error) {
       console.error('Error generating next card:', error);
       toast({
@@ -232,7 +267,7 @@ export default function GameBoard() {
         <CardHeader>
           <CardTitle className="text-2xl text-primary flex justify-between items-center">
             <span>
-              {gameStarted && currentCard ? `Current Card (${POINTS_PER_CLUE[Math.max(0, currentClueIndex - 1)] ?? 0} Points)` : 'Start Game'}
+              {gameStarted && currentCard ? `Current Card (${POINTS_PER_CLUE[Math.max(0, currentClueIndex - 1)] ?? 0} Points)` : 'Loading Game...'}
             </span>
              {gameStarted && !gameOver && players.length > 0 && (
                <span className="text-sm font-medium text-muted-foreground">
@@ -241,21 +276,21 @@ export default function GameBoard() {
              )}
           </CardTitle>
           {gameStarted && currentCard && (
-            <CardDescription>Topic: {currentCard.topic}</CardDescription>
+            <CardDescription>Topic: {currentCard.topic} | Category: {category}</CardDescription>
           )}
-           {!gameStarted && (
-              <CardDescription>Click "Start New Game" to begin.</CardDescription>
+           {!gameStarted && !loadingCard && (
+              <CardDescription>Setting up the game...</CardDescription>
+           )}
+           {loadingCard && !gameStarted && (
+              <CardDescription>Generating the first card for {category}...</CardDescription>
            )}
         </CardHeader>
         <CardContent className="space-y-4 flex-grow">
           {!gameStarted ? (
             <div className="text-center flex flex-col items-center justify-center h-full min-h-[200px]">
-              <p className="mb-4 text-muted-foreground">Click the button below to start a new game of Perfil!</p>
-              {/* Use updated handleStartGame */}
-              <Button onClick={handleStartGame} disabled={loadingCard}>
-                {loadingCard ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <HelpCircle className="mr-2 h-4 w-4" />}
-                Start New Game
-              </Button>
+              <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+              <p className="text-muted-foreground">Preparing the game board...</p>
+              {/* Removed Start Game Button as it's handled by initialization */}
             </div>
           ) : (
             <>
@@ -266,7 +301,7 @@ export default function GameBoard() {
                  {revealedClues.map((clue, index) => (
                   <p key={index} className="mb-2 text-foreground">{clue}</p>
                 ))}
-                {(loadingClue || loadingCard) && revealedClues.length === 0 && (
+                {(loadingClue || (loadingCard && revealedClues.length === 0)) && ( // Show loader if loading card OR clue when no clues shown
                   <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
                 )}
                  {loadingClue && revealedClues.length > 0 && (
@@ -324,13 +359,14 @@ export default function GameBoard() {
                  Next Card ({players[(roundStartingPlayerIndex) % players.length]?.name ?? 'Next Player'}'s Turn) {/* Show who starts NEXT round */}
              </Button>
            )}
-           {/* Simplified Start/Restart Button logic */}
-           {(gameOver || !gameStarted) && (
-             <Button onClick={handleStartGame} disabled={loadingCard}>
+            {/* Removed the "Play Again" button, as restarting involves going back to setup */}
+            {/* If a full game restart is needed here, uncomment and potentially add a function to reset to GameSetup */}
+           {/* {(gameOver || !gameStarted) && (
+             <Button onClick={() => handleStartGame(players)} disabled={loadingCard}> // Needs adjustment if restarting requires setup
                 {loadingCard ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <HelpCircle className="mr-2 h-4 w-4" />}
                 {gameStarted ? 'Play Again (New Game)' : 'Start New Game'}
              </Button>
-           )}
+           )} */}
         </CardFooter>
       </Card>
 
