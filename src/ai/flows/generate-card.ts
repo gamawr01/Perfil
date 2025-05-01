@@ -16,7 +16,7 @@ import { v4 as uuidv4 } from 'uuid'; // Import uuid library
 
 const GenerateCardInputSchema = z.object({
   topic: z.string().describe('The topic category for the card to be generated (e.g., Movies, History).'),
-  numClues: z.number().int().min(1).max(20).describe('The number of clues to generate for the card (typically 10).'),
+  numClues: z.number().int().min(1).max(20).default(10).describe('The number of clues to generate for the card (typically 10).'),
   // Optional: Add previously generated answers to guide uniqueness, though direct prompting is often better.
   // previousAnswers: z.array(z.string()).optional().describe('A list of answers already used in this game session to avoid repetition.')
 });
@@ -52,8 +52,9 @@ const generateCardPrompt = ai.definePrompt({
   },
   output: {
     // Ensure the output schema includes the cardId but relies on the input cardId
+     // Removed .uuid() from cardId here as it's not supported by the API for response schemas
      schema: z.object({
-       cardId: z.string().uuid().describe('The unique UUID identifier provided for the card.'),
+       cardId: z.string().describe('The unique UUID identifier provided for the card.'),
        topic: z.string().describe('The topic of the card, matching the input category.'),
        clues: z
          .array(z.string())
@@ -98,7 +99,7 @@ const generateCardFlow = ai.defineFlow<
   {
     name: 'generateCardFlow',
     inputSchema: generateCardPrompt.inputSchema, // Use the prompt's input schema which includes cardId
-    outputSchema: GenerateCardOutputSchema,
+    outputSchema: GenerateCardOutputSchema, // Use the main output schema for TS type safety
   },
   async input => {
     // The input already contains the pre-generated cardId
@@ -108,14 +109,15 @@ const generateCardFlow = ai.defineFlow<
         throw new Error("AI failed to generate card data.");
     }
     // Validate the number of clues generated
-    if (output.clues.length !== input.numClues) {
-      console.warn(`AI generated ${output.clues.length} clues, expected ${input.numClues}. Adjusting...`);
+    const expectedNumClues = input.numClues ?? 10; // Use default if not provided
+    if (output.clues.length !== expectedNumClues) {
+      console.warn(`AI generated ${output.clues.length} clues, expected ${expectedNumClues}. Adjusting...`);
       // Simple truncation or padding (less ideal, but fallback)
-      if (output.clues.length > input.numClues) {
-          output.clues = output.clues.slice(0, input.numClues);
+      if (output.clues.length > expectedNumClues) {
+          output.clues = output.clues.slice(0, expectedNumClues);
       } else {
           // Pad with placeholder - might need better handling
-          while(output.clues.length < input.numClues) {
+          while(output.clues.length < expectedNumClues) {
               output.clues.push("(Missing clue)");
           }
       }
@@ -129,6 +131,13 @@ const generateCardFlow = ai.defineFlow<
      }
 
 
-    return output;
+    // Validate the final output against the strict GenerateCardOutputSchema
+    try {
+        return GenerateCardOutputSchema.parse(output);
+    } catch (validationError) {
+        console.error("AI output failed validation:", validationError);
+        throw new Error("AI output did not match the expected format after generation.");
+    }
   }
 );
+
