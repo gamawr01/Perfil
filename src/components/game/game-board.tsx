@@ -14,11 +14,15 @@ import { Loader2, HelpCircle, Trophy, ChevronRight, SkipForward } from 'lucide-r
 import { PlayerScores } from './player-scores';
 import { type GenerateCardOutput } from '@/ai/flows/generate-card';
 import { type GenerateCluesOutput } from '@/ai/flows/generate-clues';
-import { normalizeAnswer } from '@/lib/string-utils'; // Import the normalization function
+// Importa as funções de normalização e distância Levenshtein
+import { normalizeAnswer, levenshteinDistance } from '@/lib/string-utils';
 
 const POINTS_PER_CLUE = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
 const NUM_CLUES = 10;
-const MAX_GENERATION_ATTEMPTS = 5; // Limit retries for generating unique cards
+const MAX_GENERATION_ATTEMPTS = 5; // Limita as tentativas para gerar cartas únicas
+// Limite de distância Levenshtein relativo ao comprimento da resposta correta (ex: 20% de diferença permitida)
+const LEVENSHTEIN_THRESHOLD_RATIO = 0.2; // Permite cerca de 1 erro a cada 5 caracteres
+const MIN_LEVENSHTEIN_THRESHOLD = 1; // Limite mínimo absoluto (permite pelo menos 1 erro mesmo em respostas curtas)
 
 interface Player {
   id: string;
@@ -29,7 +33,7 @@ interface Player {
 interface GameBoardProps {
   category: string;
   playerCount: number;
-  onReturnToSetup: () => void; // Add prop to handle returning to setup
+  onReturnToSetup: () => void; // Adiciona prop para lidar com o retorno à configuração
 }
 
 export default function GameBoard({ category, playerCount, onReturnToSetup }: GameBoardProps) {
@@ -41,180 +45,180 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
   const [currentClueIndex, setCurrentClueIndex] = useState(0);
   const [guess, setGuess] = useState('');
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
-  const [players, setPlayers] = useState<Player[]>([]); // Initialize as empty
-  const [gameOver, setGameOver] = useState(false); // Tracks if the current *round* is over
-  const [isSubmitting, setIsSubmitting] = useState(false); // Track guess submission state
-  const [roundStartingPlayerIndex, setRoundStartingPlayerIndex] = useState(0); // Track who started the current card round
-  const [generatedAnswers, setGeneratedAnswers] = useState<Set<string>>(new Set()); // Track generated answers to avoid repeats
+  const [players, setPlayers] = useState<Player[]>([]); // Inicializa como vazio
+  const [gameOver, setGameOver] = useState(false); // Rastreia se a *rodada* atual terminou
+  const [isSubmitting, setIsSubmitting] = useState(false); // Rastreia o estado de envio do palpite
+  const [roundStartingPlayerIndex, setRoundStartingPlayerIndex] = useState(0); // Rastreia quem iniciou a rodada atual da carta
+  const [generatedAnswers, setGeneratedAnswers] = useState<Set<string>>(new Set()); // Rastreia respostas geradas para evitar repetições
   const { toast } = useToast();
 
-  // Function to generate a unique card
+  // Função para gerar uma carta única
   const generateUniqueCard = useCallback(async (): Promise<GenerateCardOutput> => {
     let attempts = 0;
     while (attempts < MAX_GENERATION_ATTEMPTS) {
       attempts++;
-      // Pass category in Portuguese to the AI if needed, or handle internally
+      // Passa a categoria para a IA
       const card = await generateCard({ topic: category, numClues: NUM_CLUES });
-      // Normalize the answer before checking for uniqueness
+      // Normaliza a resposta antes de verificar a unicidade
       const normalizedAnswer = normalizeAnswer(card.answer);
       if (!generatedAnswers.has(normalizedAnswer)) {
         setGeneratedAnswers((prev) => new Set(prev).add(normalizedAnswer));
         return card;
       }
-      console.warn(`Generated duplicate card (attempt ${attempts}): ${card.answer}`);
+      console.warn(`Carta duplicada gerada (tentativa ${attempts}): ${card.answer}`);
       toast({
-        title: 'Carta Duplicada Detectada', // Translated
-        description: `Tentando gerar uma carta única... (Tentativa ${attempts})`, // Translated
+        title: 'Carta Duplicada Detectada',
+        description: `Tentando gerar uma carta única... (Tentativa ${attempts})`,
         variant: 'default',
       });
     }
-    throw new Error(`Falha ao gerar uma carta única após ${MAX_GENERATION_ATTEMPTS} tentativas.`); // Translated
-  }, [category, generatedAnswers, toast]); // Added dependencies
+    throw new Error(`Falha ao gerar uma carta única após ${MAX_GENERATION_ATTEMPTS} tentativas.`);
+  }, [category, generatedAnswers, toast]); // Dependências adicionadas
 
-  // revealNextClue now accepts necessary parameters directly
+  // revealNextClue agora aceita os parâmetros necessários diretamente
   const revealNextClue = useCallback(async (cardAnswer: string | undefined, clueIdx: number, allClues: string[] | undefined) => {
-    // Add checks for cardAnswer being potentially undefined
+    // Adiciona verificações para cardAnswer ser potencialmente indefinido
     if (!cardAnswer || clueIdx >= NUM_CLUES || gameOver || loadingClue) return;
 
     setLoadingClue(true);
     try {
       let nextClueText = '';
-      // Use pre-generated clues if available
+      // Usa dicas pré-geradas se disponíveis
       if (allClues && clueIdx < allClues.length) {
         nextClueText = allClues[clueIdx];
       } else {
-        // Fallback to generateClues API if needed (should ideally not happen if generateCard works)
-        console.warn("Recorrendo à API generateClues para a dica:", clueIdx + 1); // Translated
+        // Recorre à API generateClues se necessário (idealmente não deve acontecer se generateCard funcionar)
+        console.warn("Recorrendo à API generateClues para a dica:", clueIdx + 1);
         const clueData: GenerateCluesOutput = await generateClues({
-          cardName: cardAnswer, // cardAnswer is checked for undefined above
+          cardName: cardAnswer, // cardAnswer é verificado como indefinido acima
           currentClueNumber: clueIdx + 1,
         });
         nextClueText = clueData.clue;
       }
 
-      // Update state *after* successfully getting the clue
+      // Atualiza o estado *após* obter a dica com sucesso
       setRevealedClues((prev) => [...prev, `${clueIdx + 1}. ${nextClueText}`]);
-      setCurrentClueIndex(clueIdx + 1); // Update index for next call
+      setCurrentClueIndex(clueIdx + 1); // Atualiza o índice para a próxima chamada
 
-      // Check if this was the last clue *after* revealing it
+      // Verifica se esta foi a última dica *após* revelá-la
       if (clueIdx + 1 >= NUM_CLUES) {
         setGameOver(true);
         toast({
-          title: 'Fim da Rodada', // Translated
-          description: `Ninguém acertou! A resposta era: ${cardAnswer}`, // Translated
+          title: 'Fim da Rodada',
+          description: `Ninguém acertou! A resposta era: ${cardAnswer}`,
           variant: 'destructive',
         });
       }
 
     } catch (error) {
-      console.error('Erro ao revelar dica:', error); // Translated
+      console.error('Erro ao revelar dica:', error);
       toast({
-        title: 'Erro', // Translated
-        description: 'Falha ao revelar a próxima dica.', // Translated
+        title: 'Erro',
+        description: 'Falha ao revelar a próxima dica.',
         variant: 'destructive',
       });
     } finally {
       setLoadingClue(false);
     }
-  }, [toast, gameOver, loadingClue]); // Added loadingClue dependency
+  }, [toast, gameOver, loadingClue]); // Adicionada dependência loadingClue
 
 
-   // Function to start the very first game or restart entirely
-   // Accepts initialPlayers from useEffect
+   // Função para iniciar o primeiro jogo ou reiniciar completamente
+   // Aceita initialPlayers de useEffect
    const handleStartGame = useCallback(async (initialPlayers: Player[]) => {
-     if (loadingCard || initialPlayers.length === 0) return; // Check against initialPlayers
+     if (loadingCard || initialPlayers.length === 0) return; // Verifica initialPlayers
 
      setLoadingCard(true);
      setGameOver(false);
-     // Use Portuguese default names if needed
-     setPlayers(initialPlayers.map((p, i) => ({ ...p, name: `Jogador ${i + 1}`, score: 0 }))); // Reset scores using initialPlayers
-     setGeneratedAnswers(new Set()); // Clear generated answers for new game
-     setCurrentPlayerIndex(0); // Start with player 1
-     setRoundStartingPlayerIndex(0); // Player 0 starts the game/round
+     // Usa nomes padrão em português se necessário
+     setPlayers(initialPlayers.map((p, i) => ({ ...p, name: `Jogador ${i + 1}`, score: 0 }))); // Redefine pontuações usando initialPlayers
+     setGeneratedAnswers(new Set()); // Limpa respostas geradas para novo jogo
+     setCurrentPlayerIndex(0); // Começa com o jogador 1
+     setRoundStartingPlayerIndex(0); // Jogador 0 inicia o jogo/rodada
      try {
-       // Use the category prop here
-       const card = await generateUniqueCard(); // Use the unique card generator
+       // Usa a prop category aqui
+       const card = await generateUniqueCard(); // Usa o gerador de cartas únicas
        setCurrentCard(card);
        setRevealedClues([]);
        setCurrentClueIndex(0);
        setGuess('');
-       setGameStarted(true); // Set game as started
-       // Reveal the first clue after card is set
-       // Need to check card and card.answer before calling
+       setGameStarted(true); // Define o jogo como iniciado
+       // Revela a primeira dica depois que a carta é definida
+       // Precisa verificar card e card.answer antes de chamar
        if (card?.answer) {
-         revealNextClue(card.answer, 0, card.clues); // Pass necessary info
+         revealNextClue(card.answer, 0, card.clues); // Passa as informações necessárias
        } else {
-          throw new Error("A carta gerada não tem resposta."); // Translated
+          throw new Error("A carta gerada não tem resposta.");
        }
      } catch (error) {
-       console.error('Erro ao iniciar o jogo:', error); // Translated
-       const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.'; // Translated
+       console.error('Erro ao iniciar o jogo:', error);
+       const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.';
        toast({
-         title: 'Erro ao Iniciar Jogo', // Translated
-         description: `Falha ao gerar a primeira carta: ${errorMessage}. Por favor, tente novamente.`, // Translated
+         title: 'Erro ao Iniciar Jogo',
+         description: `Falha ao gerar a primeira carta: ${errorMessage}. Por favor, tente novamente.`,
          variant: 'destructive',
        });
-       setGameStarted(false); // Ensure game doesn't appear started on error
-       // Consider returning to setup or showing a retry button
+       setGameStarted(false); // Garante que o jogo não pareça iniciado em caso de erro
+       // Considere retornar à configuração ou mostrar um botão de tentar novamente
      } finally {
        setLoadingCard(false);
      }
    // eslint-disable-next-line react-hooks/exhaustive-deps
-   }, [category, loadingCard, revealNextClue, toast, generateUniqueCard]); // Dependencies for handleStartGame
+   }, [category, loadingCard, revealNextClue, toast, generateUniqueCard]); // Dependências para handleStartGame
 
 
-  // Initialize players based on playerCount prop
+  // Inicializa jogadores com base na prop playerCount
   useEffect(() => {
     const initialPlayers = Array.from({ length: playerCount }, (_, i) => ({
       id: `player${i + 1}`,
-      // Use Portuguese default name here too
+      // Usa nome padrão em português aqui também
       name: `Jogador ${i + 1}`,
       score: 0,
     }));
     setPlayers(initialPlayers);
-    // Automatically start the game once players are initialized
-    if (initialPlayers.length > 0 && !gameStarted) { // Only start if not already started
-        handleStartGame(initialPlayers); // Pass initial players to start game
+    // Inicia o jogo automaticamente assim que os jogadores são inicializados
+    if (initialPlayers.length > 0 && !gameStarted) { // Só inicia se ainda não estiver iniciado
+        handleStartGame(initialPlayers); // Passa os jogadores iniciais para iniciar o jogo
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playerCount]); // Run only when playerCount changes (on initial mount)
+  }, [playerCount]); // Executa apenas quando playerCount muda (na montagem inicial)
 
 
-  // Function to start the next round (new card, next player)
+  // Função para iniciar a próxima rodada (nova carta, próximo jogador)
   const handleNextRound = async () => {
-    if (loadingCard || players.length === 0) return; // Prevent multiple clicks and handle no players case
+    if (loadingCard || players.length === 0) return; // Evita múltiplos cliques e trata caso sem jogadores
     setLoadingCard(true);
-    setGameOver(false); // Start the new round
+    setGameOver(false); // Inicia a nova rodada
 
-    // Determine next player *before* fetching card
-    const nextPlayerIndex = (roundStartingPlayerIndex + 1) % players.length; // Next round starts with the next player in sequence
+    // Determina o próximo jogador *antes* de buscar a carta
+    const nextPlayerIndex = (roundStartingPlayerIndex + 1) % players.length; // Próxima rodada começa com o próximo jogador na sequência
     setCurrentPlayerIndex(nextPlayerIndex);
-    setRoundStartingPlayerIndex(nextPlayerIndex); // Update who starts this new round
+    setRoundStartingPlayerIndex(nextPlayerIndex); // Atualiza quem inicia esta nova rodada
 
     try {
-      // Use the category prop here and generate unique card
+      // Usa a prop category aqui e gera carta única
       const card = await generateUniqueCard();
       setCurrentCard(card);
       setRevealedClues([]);
       setCurrentClueIndex(0);
       setGuess('');
-       // Reveal the first clue for the new round
-      // Need to check card and card.answer before calling
+       // Revela a primeira dica para a nova rodada
+      // Precisa verificar card e card.answer antes de chamar
       if (card?.answer) {
          revealNextClue(card.answer, 0, card.clues);
       } else {
-          throw new Error("A carta gerada não tem resposta."); // Translated
+          throw new Error("A carta gerada não tem resposta.");
       }
     } catch (error) {
-      console.error('Erro ao gerar próxima carta:', error); // Translated
-      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.'; // Translated
+      console.error('Erro ao gerar próxima carta:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.';
       toast({
-        title: 'Erro ao Gerar Carta', // Translated
-        description: `Falha ao gerar a próxima carta: ${errorMessage}. Por favor, tente novamente.`, // Translated
+        title: 'Erro ao Gerar Carta',
+        description: `Falha ao gerar a próxima carta: ${errorMessage}. Por favor, tente novamente.`,
         variant: 'destructive',
       });
-       // Attempt to keep the game going might be complex, maybe just signal error
-       setGameOver(true); // Re-set game over if card fetch fails
+       // Tentar continuar o jogo pode ser complexo, talvez apenas sinalizar erro
+       setGameOver(true); // Define o jogo como encerrado novamente se a busca da carta falhar
     } finally {
       setLoadingCard(false);
     }
@@ -225,66 +229,77 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
     event.preventDefault();
     if (!currentCard || !guess.trim() || gameOver || isSubmitting || loadingClue || players.length === 0) return;
 
-    setIsSubmitting(true); // Prevent double submission
+    setIsSubmitting(true); // Evita envio duplo
 
-    // Normalize both the guess and the correct answer for comparison
+    // Normaliza tanto o palpite quanto a resposta correta
     const normalizedPlayerGuess = normalizeAnswer(guess);
     const normalizedCorrectAnswer = normalizeAnswer(currentCard.answer);
 
-    const currentPlayer = players[currentPlayerIndex]; // Ensure currentPlayerIndex is valid
+    // Calcula a distância Levenshtein
+    const distance = levenshteinDistance(normalizedPlayerGuess, normalizedCorrectAnswer);
+
+    // Calcula o limite de distância permitido com base no comprimento da resposta correta
+    const threshold = Math.max(
+        MIN_LEVENSHTEIN_THRESHOLD,
+        Math.floor(normalizedCorrectAnswer.length * LEVENSHTEIN_THRESHOLD_RATIO)
+    );
+
+    const isCorrect = distance <= threshold; // Verifica se a distância está dentro do limite
+
+    const currentPlayer = players[currentPlayerIndex]; // Garante que currentPlayerIndex é válido
 
     if (!currentPlayer) {
-      console.error("Jogador atual indefinido"); // Translated
+      console.error("Jogador atual indefinido");
       setIsSubmitting(false);
-      return; // Exit if player doesn't exist
+      return; // Sai se o jogador não existir
     }
 
-    if (normalizedPlayerGuess === normalizedCorrectAnswer) { // Use normalized strings for comparison
-      const pointsAwarded = POINTS_PER_CLUE[Math.max(0, currentClueIndex - 1)]; // Index is 0-based for array access
+    if (isCorrect) { // Usa a verificação de distância Levenshtein
+      const pointsAwarded = POINTS_PER_CLUE[Math.max(0, currentClueIndex - 1)]; // Índice é 0-based para acesso ao array
       setPlayers((prevPlayers) =>
         prevPlayers.map((player) =>
           player.id === currentPlayer.id ? { ...player, score: player.score + pointsAwarded } : player
         )
       );
       toast({
-        title: 'Correto!', // Translated
-        // Display the original answer in the toast for clarity
-        description: `${currentPlayer.name} acertou e ganhou ${pointsAwarded} pontos! A resposta era: ${currentCard.answer}`, // Translated
+        title: 'Correto!',
+        // Exibe a resposta original no toast para clareza
+        description: `${currentPlayer.name} acertou e ganhou ${pointsAwarded} pontos! A resposta era: ${currentCard.answer}`,
         variant: 'default',
         className: 'bg-accent text-accent-foreground',
       });
-      setGameOver(true); // End the round
+      setGameOver(true); // Encerra a rodada
     } else {
       toast({
-        title: 'Palpite Incorreto', // Translated
-        description: `Desculpe ${currentPlayer.name}, não é isso.`, // Translated
+        title: 'Palpite Incorreto',
+        description: `Desculpe ${currentPlayer.name}, não é isso. Distância: ${distance}, Limite: ${threshold}`, // Opcional: mostra a distância/limite para depuração
         variant: 'destructive',
-        className: 'animate-shake', // Keep the shake animation
+        className: 'animate-shake', // Mantém a animação de tremer
       });
       setGuess('');
 
-      // Move to the next player *immediately* after incorrect guess
+      // Move para o próximo jogador *imediatamente* após o palpite incorreto
       const nextPlayerIndex = (currentPlayerIndex + 1) % players.length;
       setCurrentPlayerIndex(nextPlayerIndex);
 
-       // Check if the turn has cycled back to the player who started the guessing for this *clue*.
-       // The player who started guessing on the current clue is the `roundStartingPlayerIndex` for the *current round*.
-       // If the *next* player to play is the one who started the round, it means everyone has had a chance on the current clue.
+       // Verifica se o turno voltou para o jogador que começou a adivinhar esta *dica*.
+       // O jogador que começou a adivinhar na dica atual é o `roundStartingPlayerIndex` para a *rodada atual*.
+       // Se o *próximo* jogador a jogar for aquele que iniciou a rodada, significa que todos tiveram uma chance na dica atual.
        if (nextPlayerIndex === roundStartingPlayerIndex && currentClueIndex < NUM_CLUES) {
-         // A full cycle of players attempted the current clue. Reveal the next one.
-         // Ensure currentCard and its properties are valid before calling
+         // Um ciclo completo de jogadores tentou a dica atual. Revele a próxima.
+         // Garante que currentCard e suas propriedades são válidas antes de chamar
          if (currentCard?.answer && currentCard?.clues) {
             revealNextClue(currentCard.answer, currentClueIndex, currentCard.clues);
          } else {
-            console.error("Não é possível revelar a próxima dica: Faltam dados da carta."); // Translated
-            toast({ title: "Erro", description: "Não foi possível buscar os dados da próxima dica.", variant: "destructive" }); // Translated
+            console.error("Não é possível revelar a próxima dica: Faltam dados da carta.");
+            toast({ title: "Erro", description: "Não foi possível buscar os dados da próxima dica.", variant: "destructive" });
          }
        }
     }
-    setIsSubmitting(false); // Re-enable submission
+    setIsSubmitting(false); // Reativa o envio
   };
 
-  // Effect for shake animation
+  // Efeito para animação de tremer
   useEffect(() => {
     const style = document.createElement('style');
     style.innerHTML = `
@@ -310,127 +325,110 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
         <CardHeader>
           <CardTitle className="text-2xl text-primary flex justify-between items-center">
             <span>
-              {/* Translated */}
               {gameStarted && currentCard ? `Carta Atual (${POINTS_PER_CLUE[Math.max(0, currentClueIndex - 1)] ?? 0} Pontos)` : 'Carregando Jogo...'}
             </span>
              {gameStarted && !gameOver && players.length > 0 && (
                <span className="text-sm font-medium text-muted-foreground">
-                 {/* Translated */}
                  Jogador: {players[currentPlayerIndex]?.name ?? 'N/A'}
                </span>
              )}
           </CardTitle>
           {gameStarted && currentCard && (
-            // Translated
             <CardDescription>Tópico: {currentCard.topic} | Categoria: {category}</CardDescription>
           )}
            {!gameStarted && !loadingCard && (
-              // Translated
               <CardDescription>Configurando o jogo...</CardDescription>
            )}
            {loadingCard && !gameStarted && (
-              // Translated
               <CardDescription>Gerando a primeira carta para {category}...</CardDescription>
            )}
            {loadingCard && gameStarted && (
-               // Translated
                <CardDescription>Gerando a próxima carta para {category}...</CardDescription>
            )}
         </CardHeader>
         <CardContent className="space-y-4 flex-grow">
-          {!gameStarted && !loadingCard ? ( // Show setup only if not started AND not loading
+          {!gameStarted && !loadingCard ? ( // Mostra a configuração apenas se não iniciado E não carregando
              <div className="text-center flex flex-col items-center justify-center h-full min-h-[200px]">
-               {/* Translated */}
                <p className="text-muted-foreground mb-4">Inicializando jogadores e preparando o tabuleiro...</p>
                 <Button onClick={onReturnToSetup} variant="outline">
-                    {/* Translated */}
                     Voltar para Configuração
                 </Button>
             </div>
-          ) : loadingCard && !currentCard ? ( // Show initial loader only when loading first card
+          ) : loadingCard && !currentCard ? ( // Mostra o loader inicial apenas ao carregar a primeira carta
              <div className="text-center flex flex-col items-center justify-center h-full min-h-[200px]">
                <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-               {/* Translated */}
                <p className="text-muted-foreground">Gerando a primeira carta...</p>
              </div>
-           ) : ( // Main game view
+           ) : ( // Visão principal do jogo
             <>
               <ScrollArea className="h-48 w-full rounded-md border p-4 bg-secondary">
                 {revealedClues.length === 0 && !loadingClue && !loadingCard && (
-                   // Translated
                   <p className="text-muted-foreground italic text-center py-4">Revelando primeira dica...</p>
                 )}
                  {revealedClues.map((clue, index) => (
                   <p key={index} className="mb-2 text-foreground">{clue}</p>
                 ))}
-                {(loadingClue || (loadingCard && revealedClues.length === 0)) && ( // Show loader if loading card OR clue when no clues shown
+                {(loadingClue || (loadingCard && revealedClues.length === 0)) && ( // Mostra loader se carregando carta OU dica quando nenhuma dica mostrada
                   <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
                 )}
                  {loadingClue && revealedClues.length > 0 && (
                      <div className="flex justify-center items-center pt-2"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
                  )}
                 {gameOver && currentCard && (
-                   // Translated
                   <p className="mt-4 font-bold text-center text-destructive">Resposta: {currentCard.answer}</p>
                 )}
               </ScrollArea>
 
               <Progress value={(currentClueIndex / NUM_CLUES) * 100} className="w-full h-2" />
               <p className="text-sm text-muted-foreground text-center">
-                 {/* Translated */}
                 Dica {Math.min(currentClueIndex, NUM_CLUES)} de {NUM_CLUES}
               </p>
 
-              {!gameOver && players.length > 0 && currentCard && ( // Ensure card exists for input
+              {!gameOver && players.length > 0 && currentCard && ( // Garante que a carta exista para o input
                 <form onSubmit={handleGuessSubmit} className="flex gap-2 items-center">
                   <Input
                     type="text"
-                     // Translated placeholder
                     placeholder={`${players[currentPlayerIndex]?.name ?? 'Jogador Atual'}, faça seu palpite...`}
                     value={guess}
                     onChange={(e) => setGuess(e.target.value)}
                     disabled={loadingClue || gameOver || isSubmitting || loadingCard}
                     className="flex-grow"
-                    aria-label="Campo de palpite" // Translated aria-label
+                    aria-label="Campo de palpite"
                   />
                   <Button type="submit" disabled={loadingClue || !guess.trim() || gameOver || isSubmitting || loadingCard} variant="default">
                     {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                     {/* Translated */}
                     Enviar Palpite
                   </Button>
                 </form>
               )}
-               {/* Case where game started but players array is empty (should not happen with defaults) */}
+               {/* Caso onde o jogo começou mas o array de jogadores está vazio (não deve acontecer com os padrões) */}
                {gameStarted && players.length === 0 && (
-                 // Translated
                  <p className="text-center text-destructive">Erro: Nenhum jogador encontrado.</p>
                )}
             </>
           )}
         </CardContent>
-        <CardFooter className="flex flex-wrap justify-between items-center gap-2 pt-4"> {/* Added flex-wrap and gap */}
-           {/* Return to Setup Button */}
+        <CardFooter className="flex flex-wrap justify-between items-center gap-2 pt-4"> {/* Adicionado flex-wrap e gap */}
+           {/* Botão Voltar para Configuração */}
            <Button onClick={onReturnToSetup} variant="outline" size="sm">
-               {/* Translated */}
               Voltar para Configuração
             </Button>
 
-          {gameStarted && !gameOver && currentCard && ( // Ensure card exists for reveal button
+          {gameStarted && !gameOver && currentCard && ( // Garante que a carta exista para o botão de revelar
               <Button
                 onClick={() => currentCard && revealNextClue(currentCard.answer, currentClueIndex, currentCard.clues)}
                 disabled={loadingClue || currentClueIndex >= NUM_CLUES || gameOver || loadingCard}
                 variant="outline"
               >
                 {loadingClue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ChevronRight className="mr-2 h-4 w-4" />}
-                 {/* Translated */}
                 Revelar Próxima Dica ({POINTS_PER_CLUE[currentClueIndex] ?? 0} pts)
               </Button>
           )}
            {gameStarted && gameOver && players.length > 0 && (
-             // Use updated handleNextRound
+             // Usa handleNextRound atualizado
              <Button onClick={handleNextRound} disabled={loadingCard}>
                 {loadingCard ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SkipForward className="mr-2 h-4 w-4" />}
-                 {/* Translated - Show who starts NEXT round */}
+                 {/* Mostra quem começa a PRÓXIMA rodada */}
                  Próxima Carta (Vez de {players[(roundStartingPlayerIndex) % players.length]?.name ?? 'Próximo Jogador'})
              </Button>
            )}
@@ -438,8 +436,8 @@ export default function GameBoard({ category, playerCount, onReturnToSetup }: Ga
         </CardFooter>
       </Card>
 
-      {/* Ensure currentPlayerId is passed correctly, even if players array is empty */}
-      {/* Pass players array to PlayerScores */}
+      {/* Garante que currentPlayerId seja passado corretamente, mesmo se o array de jogadores estiver vazio */}
+      {/* Passa o array de jogadores para PlayerScores */}
       <PlayerScores players={players} currentPlayerId={gameStarted && !gameOver && players.length > 0 ? players[currentPlayerIndex]?.id : undefined} />
     </div>
   );
