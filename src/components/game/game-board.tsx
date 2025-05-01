@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -9,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, HelpCircle, Trophy, ChevronRight } from 'lucide-react';
+import { Loader2, HelpCircle, Trophy, ChevronRight, SkipForward } from 'lucide-react'; // Added SkipForward
 import { PlayerScores } from './player-scores';
 import { type GenerateCardOutput } from '@/ai/flows/generate-card';
 import { type GenerateCluesOutput } from '@/ai/flows/generate-clues';
@@ -36,126 +37,176 @@ export default function GameBoard() {
     { id: 'player1', name: 'Player 1', score: 0 },
     { id: 'player2', name: 'Player 2', score: 0 },
   ]); // Example players
-  const [gameOver, setGameOver] = useState(false);
+  const [gameOver, setGameOver] = useState(false); // Tracks if the current *round* is over
+  const [isSubmitting, setIsSubmitting] = useState(false); // Track guess submission state
+  const [roundStartingPlayerIndex, setRoundStartingPlayerIndex] = useState(0); // Track who started the current card round
   const { toast } = useToast();
 
+  // revealNextClue now accepts necessary parameters directly
+  const revealNextClue = useCallback(async (cardAnswer: string | undefined, clueIdx: number, allClues: string[] | undefined) => {
+    // Add checks for cardAnswer being potentially undefined
+    if (!cardAnswer || clueIdx >= NUM_CLUES || gameOver || loadingClue) return;
+
+    setLoadingClue(true);
+    try {
+      let nextClueText = '';
+      // Use pre-generated clues if available
+      if (allClues && clueIdx < allClues.length) {
+        nextClueText = allClues[clueIdx];
+      } else {
+        // Fallback to generateClues API if needed (should ideally not happen if generateCard works)
+        console.warn("Falling back to generateClues API for clue:", clueIdx + 1);
+        const clueData: GenerateCluesOutput = await generateClues({
+          cardName: cardAnswer, // cardAnswer is checked for undefined above
+          currentClueNumber: clueIdx + 1,
+        });
+        nextClueText = clueData.clue;
+      }
+
+      // Update state *after* successfully getting the clue
+      setRevealedClues((prev) => [...prev, `${clueIdx + 1}. ${nextClueText}`]);
+      setCurrentClueIndex(clueIdx + 1); // Update index for next call
+
+      // Check if this was the last clue *after* revealing it
+      if (clueIdx + 1 >= NUM_CLUES) {
+        setGameOver(true);
+        toast({
+          title: 'Round Over',
+          description: `No one guessed correctly! The answer was: ${cardAnswer}`,
+          variant: 'destructive',
+        });
+      }
+
+    } catch (error) {
+      console.error('Error revealing clue:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to reveal the next clue.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingClue(false);
+    }
+  }, [toast, gameOver, loadingClue]); // Added loadingClue dependency
+
+  // Function to start the very first game or restart entirely
   const handleStartGame = async () => {
     setLoadingCard(true);
     setGameOver(false);
-    setPlayers(players.map(p => ({ ...p, score: 0 }))); // Reset scores
+    setPlayers(players.map(p => ({ ...p, score: 0 }))); // Reset scores for a new game
+    setCurrentPlayerIndex(0); // Start with player 1
+    setRoundStartingPlayerIndex(0); // Player 0 starts the game/round
     try {
       const card = await generateCard({ topic: 'General Knowledge', numClues: NUM_CLUES });
       setCurrentCard(card);
       setRevealedClues([]);
       setCurrentClueIndex(0);
       setGuess('');
-      setCurrentPlayerIndex(0);
       setGameStarted(true);
-      // Reveal the first clue automatically
-      revealNextClue(card.answer); // Pass answer to revealNextClue
+      // Reveal the first clue after card is set
+      revealNextClue(card.answer, 0, card.clues); // Pass necessary info
     } catch (error) {
-      console.error('Error generating card:', error);
+      console.error('Error starting game:', error);
       toast({
         title: 'Error',
-        description: 'Failed to generate a new card. Please try again.',
+        description: 'Failed to generate the first card. Please try again.',
         variant: 'destructive',
       });
+      setGameStarted(false); // Ensure game doesn't appear started on error
     } finally {
       setLoadingCard(false);
     }
   };
 
-  const revealNextClue = useCallback(async (cardAnswer: string) => { // Accept cardAnswer
-    if (!currentCard || currentClueIndex >= NUM_CLUES || gameOver) return;
+  // Function to start the next round (new card, next player)
+  const handleNextRound = async () => {
+    if (loadingCard || players.length === 0) return; // Prevent multiple clicks and handle no players case
+    setLoadingCard(true);
+    setGameOver(false); // Start the new round
 
-    setLoadingClue(true);
+    // Determine next player *before* fetching card
+    const nextPlayerIndex = (roundStartingPlayerIndex + 1) % players.length; // Next round starts with the next player in sequence
+    setCurrentPlayerIndex(nextPlayerIndex);
+    setRoundStartingPlayerIndex(nextPlayerIndex); // Update who starts this new round
+
     try {
-      // Use generated clues if available, otherwise call generateClues
-      if (currentCard.clues && currentClueIndex < currentCard.clues.length) {
-        const nextClue = currentCard.clues[currentClueIndex];
-        setRevealedClues((prev) => [...prev, `${currentClueIndex + 1}. ${nextClue}`]);
-        setCurrentClueIndex((prev) => prev + 1);
-      } else {
-        // Fallback to generateClues if pre-generated clues run out or don't exist
-        const clueData: GenerateCluesOutput = await generateClues({
-          cardName: cardAnswer, // Use the passed cardAnswer
-          currentClueNumber: currentClueIndex + 1,
-        });
-        setRevealedClues((prev) => [...prev, `${currentClueIndex + 1}. ${clueData.clue}`]);
-        setCurrentClueIndex((prev) => prev + 1);
-      }
-       // Check if it was the last clue
-       if (currentClueIndex + 1 >= NUM_CLUES) {
-        setGameOver(true);
-        toast({
-          title: 'Game Over',
-          description: `No one guessed correctly! The answer was: ${cardAnswer}`,
-          variant: 'destructive',
-        });
-       }
-
+      const card = await generateCard({ topic: 'General Knowledge', numClues: NUM_CLUES });
+      setCurrentCard(card);
+      setRevealedClues([]);
+      setCurrentClueIndex(0);
+      setGuess('');
+       // Reveal the first clue for the new round
+      revealNextClue(card.answer, 0, card.clues);
     } catch (error) {
-      console.error('Error generating clue:', error);
+      console.error('Error generating next card:', error);
       toast({
         title: 'Error',
-        description: 'Failed to generate the next clue.',
+        description: 'Failed to generate the next card. Please try again.',
         variant: 'destructive',
       });
+       // Attempt to keep the game going might be complex, maybe just signal error
+       setGameOver(true); // Re-set game over if card fetch fails
     } finally {
-      setLoadingClue(false);
+      setLoadingCard(false);
     }
-  }, [currentCard, currentClueIndex, toast, gameOver]); // Add gameOver dependency
+  };
 
 
-  const handleGuessSubmit = (event: React.FormEvent) => {
+  const handleGuessSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!currentCard || !guess.trim() || gameOver) return;
+    if (!currentCard || !guess.trim() || gameOver || isSubmitting || loadingClue || players.length === 0) return;
+
+    setIsSubmitting(true); // Prevent double submission
 
     const correctAnswer = currentCard.answer.toLowerCase().trim();
     const playerGuess = guess.toLowerCase().trim();
+    const currentPlayer = players[currentPlayerIndex]; // Ensure currentPlayerIndex is valid
+
+    if (!currentPlayer) {
+      console.error("Current player is undefined");
+      setIsSubmitting(false);
+      return; // Exit if player doesn't exist
+    }
 
     if (playerGuess === correctAnswer) {
-      const pointsAwarded = POINTS_PER_CLUE[currentClueIndex -1]; // -1 because index is updated after reveal
+      const pointsAwarded = POINTS_PER_CLUE[Math.max(0, currentClueIndex - 1)]; // Index is 0-based for array access
       setPlayers((prevPlayers) =>
-        prevPlayers.map((player, index) =>
-          index === currentPlayerIndex ? { ...player, score: player.score + pointsAwarded } : player
+        prevPlayers.map((player) =>
+          player.id === currentPlayer.id ? { ...player, score: player.score + pointsAwarded } : player
         )
       );
       toast({
         title: 'Correct!',
-        description: `${players[currentPlayerIndex].name} guessed correctly and earned ${pointsAwarded} points! The answer was: ${currentCard.answer}`,
-        variant: 'default', // Use default for success
-        className: 'bg-accent text-accent-foreground', // Green accent for correct guess
+        description: `${currentPlayer.name} guessed correctly and earned ${pointsAwarded} points! The answer was: ${currentCard.answer}`,
+        variant: 'default',
+        className: 'bg-accent text-accent-foreground',
       });
       setGameOver(true); // End the round
-      // Optionally: Start next round automatically or provide a button
-      // handleStartGame(); // Example: Start next round immediately
     } else {
       toast({
         title: 'Incorrect Guess',
-        description: 'Try again or reveal the next clue.',
+        description: `Sorry ${currentPlayer.name}, that's not it.`,
         variant: 'destructive',
-        className: 'animate-shake', // Add subtle shake animation
+        className: 'animate-shake', // Keep the shake animation
       });
       setGuess('');
-      // Move to the next player
-      setCurrentPlayerIndex((prevIndex) => (prevIndex + 1) % players.length);
-       // If it cycles back to the first player, reveal the next clue
-      if ((currentPlayerIndex + 1) % players.length === 0) {
-         revealNextClue(currentCard.answer);
-      }
+
+      // Move to the next player *immediately* after incorrect guess
+      const nextPlayerIndex = (currentPlayerIndex + 1) % players.length;
+      setCurrentPlayerIndex(nextPlayerIndex);
+
+       // Check if the turn has cycled back to the player who started the guessing for this *clue*.
+       // The player who started guessing on the current clue is the `roundStartingPlayerIndex` for the *current round*.
+       // If the *next* player to play is the one who started the round, it means everyone has had a chance on the current clue.
+       if (nextPlayerIndex === roundStartingPlayerIndex && currentClueIndex < NUM_CLUES) {
+         // A full cycle of players attempted the current clue. Reveal the next one.
+         revealNextClue(currentCard.answer, currentClueIndex, currentCard.clues);
+       }
     }
+    setIsSubmitting(false); // Re-enable submission
   };
 
-  // Effect to reveal the first clue when a card is loaded
-  useEffect(() => {
-    if (currentCard && revealedClues.length === 0 && !loadingCard && gameStarted) {
-     // revealNextClue(currentCard.answer); // Pass answer
-    }
-  }, [currentCard, revealedClues.length, loadingCard, gameStarted, revealNextClue]);
-
-
-  // Subtle animation effect for incorrect guess
+  // Effect for shake animation
   useEffect(() => {
     const style = document.createElement('style');
     style.innerHTML = `
@@ -177,78 +228,114 @@ export default function GameBoard() {
 
   return (
     <div className="w-full max-w-4xl flex flex-col md:flex-row gap-8">
-      <Card className="flex-1">
+      <Card className="flex-1 flex flex-col">
         <CardHeader>
-          <CardTitle className="text-2xl text-primary">
-            {gameStarted ? `Current Card (${POINTS_PER_CLUE[Math.max(0, currentClueIndex - 1)]} Points)` : 'Start Game'}
+          <CardTitle className="text-2xl text-primary flex justify-between items-center">
+            <span>
+              {gameStarted && currentCard ? `Current Card (${POINTS_PER_CLUE[Math.max(0, currentClueIndex - 1)] ?? 0} Points)` : 'Start Game'}
+            </span>
+             {gameStarted && !gameOver && players.length > 0 && (
+               <span className="text-sm font-medium text-muted-foreground">
+                 Player: {players[currentPlayerIndex]?.name ?? 'N/A'}
+               </span>
+             )}
           </CardTitle>
           {gameStarted && currentCard && (
             <CardDescription>Topic: {currentCard.topic}</CardDescription>
           )}
+           {!gameStarted && (
+              <CardDescription>Click "Start New Game" to begin.</CardDescription>
+           )}
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 flex-grow">
           {!gameStarted ? (
-            <div className="text-center">
+            <div className="text-center flex flex-col items-center justify-center h-full min-h-[200px]">
               <p className="mb-4 text-muted-foreground">Click the button below to start a new game of Perfil!</p>
+              {/* Use updated handleStartGame */}
               <Button onClick={handleStartGame} disabled={loadingCard}>
                 {loadingCard ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <HelpCircle className="mr-2 h-4 w-4" />}
-                Generate New Card
+                Start New Game
               </Button>
             </div>
           ) : (
             <>
               <ScrollArea className="h-48 w-full rounded-md border p-4 bg-secondary">
-                {revealedClues.length === 0 && !loadingClue && (
-                  <p className="text-muted-foreground italic">No clues revealed yet.</p>
+                {revealedClues.length === 0 && !loadingClue && !loadingCard && (
+                  <p className="text-muted-foreground italic text-center py-4">Revealing first clue...</p>
                 )}
-                {revealedClues.map((clue, index) => (
+                 {revealedClues.map((clue, index) => (
                   <p key={index} className="mb-2 text-foreground">{clue}</p>
                 ))}
-                {loadingClue && <Loader2 className="m-auto h-6 w-6 animate-spin text-primary" />}
+                {(loadingClue || loadingCard) && revealedClues.length === 0 && (
+                  <div className="flex justify-center items-center h-full"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+                )}
+                 {loadingClue && revealedClues.length > 0 && (
+                     <div className="flex justify-center items-center pt-2"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
+                 )}
+                {gameOver && currentCard && (
+                  <p className="mt-4 font-bold text-center text-destructive">Answer: {currentCard.answer}</p>
+                )}
               </ScrollArea>
 
               <Progress value={(currentClueIndex / NUM_CLUES) * 100} className="w-full h-2" />
               <p className="text-sm text-muted-foreground text-center">
-                Clue {currentClueIndex} of {NUM_CLUES}
+                Clue {Math.min(currentClueIndex, NUM_CLUES)} of {NUM_CLUES}
               </p>
 
-              <form onSubmit={handleGuessSubmit} className="flex gap-2 items-center">
-                <Input
-                  type="text"
-                  placeholder={`${players[currentPlayerIndex].name}, make your guess...`}
-                  value={guess}
-                  onChange={(e) => setGuess(e.target.value)}
-                  disabled={loadingClue || gameOver}
-                  className="flex-grow"
-                />
-                <Button type="submit" disabled={loadingClue || !guess.trim() || gameOver} variant="default">
-                  Submit Guess
-                </Button>
-              </form>
+              {!gameOver && players.length > 0 && (
+                <form onSubmit={handleGuessSubmit} className="flex gap-2 items-center">
+                  <Input
+                    type="text"
+                    placeholder={`${players[currentPlayerIndex]?.name ?? 'Current Player'}, make your guess...`}
+                    value={guess}
+                    onChange={(e) => setGuess(e.target.value)}
+                    disabled={loadingClue || gameOver || isSubmitting || loadingCard}
+                    className="flex-grow"
+                    aria-label="Guess input"
+                  />
+                  <Button type="submit" disabled={loadingClue || !guess.trim() || gameOver || isSubmitting || loadingCard} variant="default">
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Submit Guess
+                  </Button>
+                </form>
+              )}
+               {/* Case where game started but players array is empty (should not happen with defaults) */}
+               {gameStarted && players.length === 0 && (
+                 <p className="text-center text-destructive">Error: No players found.</p>
+               )}
             </>
           )}
         </CardContent>
-        <CardFooter className="flex justify-between">
-          {gameStarted && (
+        <CardFooter className="flex flex-wrap justify-between items-center gap-2 pt-4"> {/* Added flex-wrap and gap */}
+          {gameStarted && !gameOver && (
               <Button
-                onClick={() => currentCard && revealNextClue(currentCard.answer)}
-                disabled={loadingClue || currentClueIndex >= NUM_CLUES || gameOver}
+                onClick={() => currentCard && revealNextClue(currentCard.answer, currentClueIndex, currentCard.clues)}
+                disabled={loadingClue || currentClueIndex >= NUM_CLUES || gameOver || loadingCard}
                 variant="outline"
               >
                 {loadingClue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ChevronRight className="mr-2 h-4 w-4" />}
-                Next Clue
+                Reveal Next Clue ({POINTS_PER_CLUE[currentClueIndex] ?? 0} pts)
               </Button>
           )}
-           {gameOver && (
+           {gameStarted && gameOver && players.length > 0 && (
+             // Use updated handleNextRound
+             <Button onClick={handleNextRound} disabled={loadingCard}>
+                {loadingCard ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <SkipForward className="mr-2 h-4 w-4" />}
+                 Next Card ({players[(roundStartingPlayerIndex) % players.length]?.name ?? 'Next Player'}'s Turn) {/* Show who starts NEXT round */}
+             </Button>
+           )}
+           {/* Simplified Start/Restart Button logic */}
+           {(gameOver || !gameStarted) && (
              <Button onClick={handleStartGame} disabled={loadingCard}>
-                {loadingCard ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trophy className="mr-2 h-4 w-4" />}
-                 Play Again
+                {loadingCard ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <HelpCircle className="mr-2 h-4 w-4" />}
+                {gameStarted ? 'Play Again (New Game)' : 'Start New Game'}
              </Button>
            )}
         </CardFooter>
       </Card>
 
-      <PlayerScores players={players} currentPlayerId={players[currentPlayerIndex]?.id} />
+      {/* Ensure currentPlayerId is passed correctly, even if players array is empty */}
+      <PlayerScores players={players} currentPlayerId={gameStarted && !gameOver && players.length > 0 ? players[currentPlayerIndex]?.id : undefined} />
     </div>
   );
 }
