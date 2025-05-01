@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, HelpCircle, Trophy, ChevronRight, SkipForward, BarChart, Tag } from 'lucide-react'; // Added Tag icon
+import { Loader2, HelpCircle, Trophy, ChevronRight, SkipForward, BarChart, Tag, Info } from 'lucide-react'; // Added Tag, Info icons
 import { PlayerScores } from './player-scores';
 import { type GenerateCardOutput } from '@/ai/flows/generate-card';
 import { type GenerateCluesOutput } from '@/ai/flows/generate-clues';
@@ -22,6 +22,9 @@ const MAX_GENERATION_ATTEMPTS = 5; // Limita as tentativas para gerar cartas ún
 // Limite de distância Levenshtein relativo ao comprimento da resposta correta (ex: 20% de diferença permitida)
 const LEVENSHTEIN_THRESHOLD_RATIO = 0.2; // Permite cerca de 1 erro a cada 5 caracteres
 const MIN_LEVENSHTEIN_THRESHOLD = 1; // Limite mínimo absoluto (permite pelo menos 1 erro mesmo em respostas curtas)
+// Novo limite para considerar um palpite "próximo" (ex: 35% de diferença)
+const LEVENSHTEIN_CLOSE_THRESHOLD_RATIO = 0.35;
+const MIN_LEVENSHTEIN_CLOSE_THRESHOLD_ADDITION = 1; // Garante que "próximo" seja pelo menos 1 edição a mais que "correto"
 
 interface Player {
   id: string;
@@ -249,13 +252,21 @@ export default function GameBoard({ category, playerCount, difficulty, onReturnT
     // Calcula a distância Levenshtein
     const distance = levenshteinDistance(normalizedPlayerGuess, normalizedCorrectAnswer);
 
-    // Calcula o limite de distância permitido com base no comprimento da resposta correta
-    const threshold = Math.max(
+    // Calcula o limite de distância permitido para "correto"
+    const correctnessThreshold = Math.max(
         MIN_LEVENSHTEIN_THRESHOLD,
         Math.floor(normalizedCorrectAnswer.length * LEVENSHTEIN_THRESHOLD_RATIO)
     );
 
-    const isCorrect = distance <= threshold; // Verifica se a distância está dentro do limite
+    // Calcula o limite de distância permitido para "próximo"
+    const closeThreshold = Math.max(
+      correctnessThreshold + MIN_LEVENSHTEIN_CLOSE_THRESHOLD_ADDITION, // Garante que seja maior que o threshold de correto
+      Math.floor(normalizedCorrectAnswer.length * LEVENSHTEIN_CLOSE_THRESHOLD_RATIO)
+    );
+
+
+    const isCorrect = distance <= correctnessThreshold; // Verifica se a distância está dentro do limite de correto
+    const isClose = !isCorrect && distance <= closeThreshold; // Verifica se está dentro do limite de próximo (mas não correto)
 
     const currentPlayer = players[currentPlayerIndex]; // Garante que currentPlayerIndex é válido
 
@@ -265,7 +276,9 @@ export default function GameBoard({ category, playerCount, difficulty, onReturnT
       return; // Sai se o jogador não existir
     }
 
-    if (isCorrect) { // Usa a verificação de distância Levenshtein
+    let incorrectGuess = false; // Flag para lógica comum de erro
+
+    if (isCorrect) { // Palpite correto
       const pointsAwarded = POINTS_PER_CLUE[Math.max(0, currentClueIndex - 1)]; // Índice é 0-based para acesso ao array
       setPlayers((prevPlayers) =>
         prevPlayers.map((player) =>
@@ -280,26 +293,36 @@ export default function GameBoard({ category, playerCount, difficulty, onReturnT
         className: 'bg-accent text-accent-foreground',
       });
       setGameOver(true); // Encerra a rodada
-    } else {
+    } else if (isClose) { // Palpite próximo, mas não correto
+        toast({
+            title: 'Quase lá!',
+            description: `Desculpe ${currentPlayer.name}, não é exatamente isso, mas você está perto!`,
+            variant: 'default', // Use 'default' ou 'info' style
+            className: 'bg-yellow-100 border-yellow-300 text-yellow-800 dark:bg-yellow-900 dark:border-yellow-700 dark:text-yellow-300', // Custom yellow style
+        });
+        incorrectGuess = true; // Tratar como incorreto para a lógica do jogo
+    } else { // Palpite incorreto
       toast({
         title: 'Palpite Incorreto',
-        description: `Desculpe ${currentPlayer.name}, não é isso.`, // Simplified message
-        // description: `Desculpe ${currentPlayer.name}, não é isso. Distância: ${distance}, Limite: ${threshold}`, // Opcional: mostra a distância/limite para depuração
+        description: `Desculpe ${currentPlayer.name}, não é isso.`, // Mensagem simplificada
+        // description: `Desculpe ${currentPlayer.name}, não é isso. Distância: ${distance}, Limite: ${correctnessThreshold}`, // Opcional: depuração
         variant: 'destructive',
         className: 'animate-shake', // Mantém a animação de tremer
       });
-      setGuess('');
+      incorrectGuess = true; // Tratar como incorreto para a lógica do jogo
+    }
 
-      // Move para o próximo jogador *imediatamente* após o palpite incorreto
+    // Lógica comum para palpites incorretos (ou próximos)
+    if (incorrectGuess) {
+      setGuess(''); // Limpa o campo de palpite
+
+      // Move para o próximo jogador *imediatamente*
       const nextPlayerIndex = (currentPlayerIndex + 1) % players.length;
       setCurrentPlayerIndex(nextPlayerIndex);
 
        // Verifica se o turno voltou para o jogador que começou a adivinhar esta *dica*.
-       // O jogador que começou a adivinhar na dica atual é o `roundStartingPlayerIndex` para a *rodada atual*.
-       // Se o *próximo* jogador a jogar for aquele que iniciou a rodada, significa que todos tiveram uma chance na dica atual.
        if (nextPlayerIndex === roundStartingPlayerIndex && currentClueIndex < NUM_CLUES) {
          // Um ciclo completo de jogadores tentou a dica atual. Revele a próxima.
-         // Garante que currentCard e suas propriedades são válidas antes de chamar
          if (currentCard?.answer && currentCard?.clues) {
             revealNextClue(currentCard.answer, currentClueIndex, currentCard.clues);
          } else {
@@ -308,6 +331,7 @@ export default function GameBoard({ category, playerCount, difficulty, onReturnT
          }
        }
     }
+
     setIsSubmitting(false); // Reativa o envio
   };
 

@@ -7,6 +7,15 @@ export default {
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
+  // Safelist ensures specific yellow classes are generated for the "close guess" toast
+  safelist: [
+    'bg-yellow-100',
+    'border-yellow-300',
+    'text-yellow-800',
+    'dark:bg-yellow-900',
+    'dark:border-yellow-700',
+    'dark:text-yellow-300',
+  ],
   theme: {
   	extend: {
   		colors: {
@@ -92,3 +101,4 @@ export default {
   },
   plugins: [require("tailwindcss-animate")],
 } satisfies Config;
+
