@@ -15,7 +15,8 @@ import { v4 as uuidv4 } from 'uuid'; // Import uuid library
 
 const GenerateCardInputSchema = z.object({
   topic: z.string().describe('A categoria do tópico para a carta a ser gerada (ex: Filmes, História).'),
-  numClues: z.number().int().min(1).max(20).default(10).describe('O número de dicas a gerar para a carta (normalmente 10).'),
+  // Changed default and description for numClues to 20
+  numClues: z.number().int().min(1).max(20).default(20).describe('O número de dicas a gerar para a carta (padrão 20).'),
   difficulty: z.enum(['facil', 'medio', 'dificil']).default('medio').describe('O nível de dificuldade da carta e das dicas (facil, medio, dificil).'),
   // Optional: Add previously generated answers to guide uniqueness, though direct prompting is often better.
   // previousAnswers: z.array(z.string()).optional().describe('Uma lista de respostas já usadas nesta sessão de jogo para evitar repetição.')
@@ -23,12 +24,13 @@ const GenerateCardInputSchema = z.object({
 export type GenerateCardInput = z.infer<typeof GenerateCardInputSchema>;
 
 const GenerateCardOutputSchema = z.object({
-  cardId: z.string().uuid().describe('Um identificador UUID único para a carta.'),
+  cardId: z.string().describe('Um identificador UUID único para a carta.'), // Removed .uuid() validation as the model might not return a perfect UUID string
   topic: z.string().describe('O tópico da carta, confirmando a categoria de entrada.'),
   answerType: z.string().describe('O tipo da resposta (ex: Pessoa, Lugar, Coisa, Evento, Conceito, Filme, Livro).'), // Added answerType
   clues: z
     .array(z.string())
     .min(1) // Garante pelo menos uma dica
+    .max(20) // Garante no máximo 20 dicas
     .describe('Um array de dicas para a carta, ordenadas da mais difícil (índice 0) para a mais fácil.'),
   answer: z.string().nonempty().describe('A resposta específica e concisa para a carta (pessoa, lugar, coisa, evento, etc.).'),
 });
@@ -46,27 +48,29 @@ const generateCardPrompt = ai.definePrompt({
   input: {
     schema: z.object({
       topic: z.string().describe('A categoria do tópico para a carta a ser gerada (ex: Filmes, História).'),
-      numClues: z.number().int().min(1).max(20).describe('O número de dicas a gerar para a carta (normalmente 10).'),
+      // Changed description for numClues to 20
+      numClues: z.number().int().min(1).max(20).describe('O número de dicas a gerar para a carta (normalmente 20).'),
       difficulty: z.enum(['facil', 'medio', 'dificil']).describe('O nível de dificuldade da carta e das dicas (facil, medio, dificil).'),
-      cardId: z.string().uuid().describe('O UUID pré-gerado para esta carta.'), // Input schema expects the cardId
+      cardId: z.string().describe('O UUID pré-gerado para esta carta.'), // Input schema expects the cardId - keep as string
       // previousAnswers: z.array(z.string()).optional().describe('Uma lista de respostas já usadas.') // Uncomment if using this approach
     }),
   },
   output: {
      schema: z.object({
-       cardId: z.string().describe('O identificador UUID único fornecido para a carta.'),
+       cardId: z.string().describe('O identificador único fornecido para a carta.'), // Output description expects string
        topic: z.string().describe('O tópico da carta, correspondendo à categoria de entrada.'),
        answerType: z.string().describe('O tipo da resposta (ex: Pessoa, Lugar, Coisa, Evento, Conceito, Filme, Livro).'), // Added answerType to output schema description
        clues: z
          .array(z.string())
          .min(1)
-         .describe('Um array de dicas, ordenadas da mais difícil (índice 0) para a mais fácil.'),
+         .max(20) // Added max(20)
+         .describe('Um array de dicas (exatamente 20), ordenadas da mais difícil (índice 0) para a mais fácil.'),
        answer: z.string().nonempty().describe('A resposta específica e concisa para a carta.'),
      }),
   },
-  // Updated Prompt (Translated & Enhanced for Variety, Difficulty, and Answer Type):
+  // Updated Prompt (Translated & Enhanced for Variety, Difficulty, Answer Type, and 20 Clues):
   prompt: `Você é um designer de jogos experiente criando cartas para o jogo de adivinhação "Perfil Online".
-Sua tarefa é gerar uma carta ÚNICA e envolvente com base no tópico e na dificuldade fornecidos.
+Sua tarefa é gerar uma carta ÚNICA e envolvente com base no tópico e na dificuldade fornecidos, contendo exatamente 20 dicas.
 
 **Instruções:**
 1.  **Determine a Resposta:** Escolha uma pessoa, lugar, coisa, conceito, evento, filme, livro, etc. específico que se encaixe na categoria: **{{{topic}}}** e no nível de dificuldade: **{{{difficulty}}}**. Esta será a resposta da carta.
@@ -79,15 +83,15 @@ Sua tarefa é gerar uma carta ÚNICA e envolvente com base no tópico e na dific
     *   **Exemplo de Pensamento (Tópico: Filmes, Dificuldade: Difícil):** Em vez de "O Poderoso Chefão", considere "Stalker (1979)", "Primer (2004)" ou um filme experimental/cult específico.
     *   **Exemplo de Pensamento (Tópico: Ciência, Dificuldade: Fácil):** "Gravidade" ou "Fotossíntese" são adequados.
 2.  **Determine o Tipo da Resposta:** Classifique a resposta que você escolheu em uma categoria geral. Use um termo simples e direto como 'Pessoa', 'Lugar', 'Coisa', 'Evento', 'Conceito', 'Filme', 'Livro', 'Animal', 'Comida', etc. Defina o campo 'answerType' com esta classificação.
-3.  **Gere Dicas:** Crie exatamente **{{{numClues}}}** dicas para a resposta.
-    *   **Progressão de Dificuldade das Dicas:** As dicas DEVEM começar muito difíceis/obscuras (Dica 1) e progressivamente ficar mais fáceis. A Dica {{{numClues}}} deve tornar a resposta bastante óbvia, mas ainda exigir raciocínio. A dificuldade geral das dicas deve refletir a dificuldade **{{{difficulty}}}** selecionada (dicas mais obscuras no início para difícil, mais diretas no final para fácil).
+3.  **Gere Dicas:** Crie **exatamente 20** dicas para a resposta.
+    *   **Progressão de Dificuldade das Dicas:** As dicas DEVEM começar muito difíceis/obscuras (Dica 1) e progressivamente ficar mais fáceis. A Dica 20 deve tornar a resposta bastante óbvia, mas ainda exigir raciocínio. A dificuldade geral das dicas deve refletir a dificuldade **{{{difficulty}}}** selecionada (dicas mais obscuras no início para difícil, mais diretas no final para fácil).
     *   **Conteúdo da Dica:** As dicas devem ser factuais, interessantes e sugerir a resposta sem revelá-la muito cedo. Evite perguntas de sim/não ou dicas excessivamente diretas nas primeiras dicas, especialmente para dificuldades mais altas.
     *   **Clareza:** Cada dica deve ser uma frase única e clara.
-4.  **Formate a Saída:** Estruture sua resposta como um objeto JSON correspondente ao esquema de saída. Use o UUID fornecido para o 'cardId'. Certifique-se de incluir o campo 'answerType' com a classificação determinada na Etapa 2.
+4.  **Formate a Saída:** Estruture sua resposta como um objeto JSON correspondente ao esquema de saída. Use o UUID fornecido para o 'cardId'. Certifique-se de incluir o campo 'answerType' com a classificação determinada na Etapa 2 e garantir que existam exatamente 20 dicas no array 'clues'.
 
 **Tópico de Entrada:** {{{topic}}}
 **Dificuldade de Entrada:** {{{difficulty}}}
-**Número de Dicas:** {{{numClues}}}
+**Número de Dicas (Fixo):** 20
 **ID da Carta:** {{{cardId}}}
 
 **Exemplo (Tópico: Ciência, Dificuldade: Médio):**
@@ -96,9 +100,10 @@ Tipo da Resposta: Animal
 Dica 1: Sou um organismo microscópico conhecido pela minha resistência extrema.
 Dica 2: Posso entrar em um estado de criptobiose para sobreviver a condições ambientais adversas.
 ...
-Dica 10: Sou frequentemente chamado de 'urso d'água' devido à minha aparência segmentada e capacidade de sobreviver em ambientes aquáticos.
+Dica 19: Sou frequentemente comparado a um animal mamífero que hiberna.
+Dica 20: Sou frequentemente chamado de 'urso d'água' devido à minha aparência segmentada e capacidade de sobreviver em ambientes aquáticos.
 
-**Gere a carta agora, focando em uma resposta adequada à dificuldade, menos comum se apropriado, e incluindo o tipo da resposta.**
+**Gere a carta agora, focando em uma resposta adequada à dificuldade, menos comum se apropriado, incluindo o tipo da resposta e exatamente 20 dicas ordenadas.**
 `,
 });
 
@@ -121,8 +126,8 @@ const generateCardFlow = ai.defineFlow<
         // Translated
         throw new Error("IA falhou ao gerar os dados da carta.");
     }
-    // Validate the number of clues generated
-    const expectedNumClues = input.numClues ?? 10; // Use default if not provided
+    // Validate the number of clues generated (now expects 20)
+    const expectedNumClues = 20; // Hardcoded based on game rules
     if (output.clues.length !== expectedNumClues) {
        // Translated warning
       console.warn(`IA gerou ${output.clues.length} dicas, esperava ${expectedNumClues}. Ajustando...`);
@@ -153,6 +158,7 @@ const generateCardFlow = ai.defineFlow<
             console.warn("IA não forneceu 'answerType'. Usando 'Desconhecido'.");
             output.answerType = 'Desconhecido';
         }
+        // Use parse to ensure the final output matches the schema, including the clue count check
         return GenerateCardOutputSchema.parse(output);
     } catch (validationError) {
         // Translated error

@@ -14,7 +14,8 @@ import {z} from 'genkit';
 
 const GenerateCluesInputSchema = z.object({
   cardName: z.string().describe('O nome da carta para a qual gerar dicas.'),
-  currentClueNumber: z.number().describe('O número da dica atual (1-10).'),
+  // Updated description for currentClueNumber to 1-20
+  currentClueNumber: z.number().int().min(1).max(20).describe('O número da dica atual (1-20).'),
 });
 export type GenerateCluesInput = z.infer<typeof GenerateCluesInputSchema>;
 
@@ -32,7 +33,8 @@ const cluePrompt = ai.definePrompt({
   input: {
     schema: z.object({
       cardName: z.string().describe('O nome da carta para a qual gerar dicas.'),
-      currentClueNumber: z.number().describe('O número da dica atual (1-10).'),
+      // Updated description for currentClueNumber to 1-20
+      currentClueNumber: z.number().int().min(1).max(20).describe('O número da dica atual (1-20).'),
     }),
   },
   output: {
@@ -40,7 +42,7 @@ const cluePrompt = ai.definePrompt({
       clue: z.string().describe('A dica gerada para a carta.'),
     }),
   },
-  // Translated prompt
+  // Translated prompt (no functional change needed here for clue count, handled by input)
   prompt: `Você é o mestre das dicas do jogo Perfil. Seu trabalho é fornecer uma dica sobre a carta para ajudar os jogadores a adivinhá-la. A dificuldade da dica deve aumentar com o número da dica. O nome da carta é: {{{cardName}}}. Esta é a dica número {{{currentClueNumber}}}. Forneça a dica em uma única frase curta. Não revele a resposta. A resposta deve ser apenas a dica em si, nada mais.`,
 });
 
@@ -58,3 +60,4 @@ const generateCluesFlow = ai.defineFlow<
     return output!;
   }
 );
+

@@ -16,8 +16,13 @@ import { type GenerateCluesOutput } from '@/ai/flows/generate-clues';
 // Importa as funções de normalização e distância Levenshtein
 import { normalizeAnswer, levenshteinDistance } from '@/lib/string-utils';
 
-const POINTS_PER_CLUE = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
-const NUM_CLUES = 10;
+// Updated points array for 20 clues
+const POINTS_PER_CLUE = [
+    20, 19, 18, 17, 16, 15, 14, 13, 12, 11,
+    10, 9, 8, 7, 6, 5, 4, 3, 2, 1
+];
+// Updated number of clues constant
+const NUM_CLUES = 20;
 const MAX_GENERATION_ATTEMPTS = 5; // Limita as tentativas para gerar cartas únicas
 // Limite de distância Levenshtein relativo ao comprimento da resposta correta (ex: 20% de diferença permitida)
 const LEVENSHTEIN_THRESHOLD_RATIO = 0.2; // Permite cerca de 1 erro a cada 5 caracteres
@@ -71,7 +76,7 @@ export default function GameBoard({ category, playerCount, difficulty, onReturnT
     let attempts = 0;
     while (attempts < MAX_GENERATION_ATTEMPTS) {
       attempts++;
-      // Passa a categoria e dificuldade para a IA
+      // Passa a categoria e dificuldade para a IA, requesting NUM_CLUES (now 20)
       const card = await generateCard({ topic: category, numClues: NUM_CLUES, difficulty: difficulty });
       // Normaliza a resposta antes de verificar a unicidade
       const normalizedAnswer = normalizeAnswer(card.answer);
@@ -92,6 +97,7 @@ export default function GameBoard({ category, playerCount, difficulty, onReturnT
   // revealNextClue agora aceita os parâmetros necessários diretamente
   const revealNextClue = useCallback(async (cardAnswer: string | undefined, clueIdx: number, allClues: string[] | undefined) => {
     // Adiciona verificações para cardAnswer ser potencialmente indefinido
+    // Use NUM_CLUES constant
     if (!cardAnswer || clueIdx >= NUM_CLUES || gameOver || loadingClue) return;
 
     setLoadingClue(true);
@@ -105,7 +111,7 @@ export default function GameBoard({ category, playerCount, difficulty, onReturnT
         console.warn("Recorrendo à API generateClues para a dica:", clueIdx + 1);
         const clueData: GenerateCluesOutput = await generateClues({
           cardName: cardAnswer, // cardAnswer é verificado como indefinido acima
-          currentClueNumber: clueIdx + 1,
+          currentClueNumber: clueIdx + 1, // Passa o número correto da dica (1-20)
         });
         nextClueText = clueData.clue;
       }
@@ -115,6 +121,7 @@ export default function GameBoard({ category, playerCount, difficulty, onReturnT
       setCurrentClueIndex(clueIdx + 1); // Atualiza o índice para a próxima chamada
 
       // Verifica se esta foi a última dica *após* revelá-la
+      // Use NUM_CLUES constant
       if (clueIdx + 1 >= NUM_CLUES) {
         setGameOver(true);
         toast({
@@ -279,7 +286,8 @@ export default function GameBoard({ category, playerCount, difficulty, onReturnT
     let incorrectGuess = false; // Flag para lógica comum de erro
 
     if (isCorrect) { // Palpite correto
-      const pointsAwarded = POINTS_PER_CLUE[Math.max(0, currentClueIndex - 1)]; // Índice é 0-based para acesso ao array
+      // Use POINTS_PER_CLUE array with the correct index (max 0 prevents negative index)
+      const pointsAwarded = POINTS_PER_CLUE[Math.max(0, currentClueIndex - 1)];
       setPlayers((prevPlayers) =>
         prevPlayers.map((player) =>
           player.id === currentPlayer.id ? { ...player, score: player.score + pointsAwarded } : player
@@ -321,6 +329,7 @@ export default function GameBoard({ category, playerCount, difficulty, onReturnT
       setCurrentPlayerIndex(nextPlayerIndex);
 
        // Verifica se o turno voltou para o jogador que começou a adivinhar esta *dica*.
+       // Use NUM_CLUES constant
        if (nextPlayerIndex === roundStartingPlayerIndex && currentClueIndex < NUM_CLUES) {
          // Um ciclo completo de jogadores tentou a dica atual. Revele a próxima.
          if (currentCard?.answer && currentCard?.clues) {
@@ -361,7 +370,8 @@ export default function GameBoard({ category, playerCount, difficulty, onReturnT
         <CardHeader>
           <CardTitle className="text-2xl text-primary flex justify-between items-center">
             <span>
-              {gameStarted && currentCard ? `Carta Atual (${POINTS_PER_CLUE[Math.max(0, currentClueIndex - 1)] ?? 0} Pontos)` : 'Carregando Jogo...'}
+              {/* Display points for the *next* clue if revealed */}
+              {gameStarted && currentCard ? `Carta Atual (${POINTS_PER_CLUE[currentClueIndex] ?? 0} Pontos)` : 'Carregando Jogo...'}
             </span>
              {gameStarted && !gameOver && players.length > 0 && (
                <span className="text-sm font-medium text-muted-foreground">
@@ -407,7 +417,8 @@ export default function GameBoard({ category, playerCount, difficulty, onReturnT
              </div>
            ) : ( // Visão principal do jogo
             <>
-              <ScrollArea className="h-48 w-full rounded-md border p-4 bg-secondary">
+              {/* Increased height for scroll area to accommodate more clues */}
+              <ScrollArea className="h-72 w-full rounded-md border p-4 bg-secondary">
                 {revealedClues.length === 0 && !loadingClue && !loadingCard && (
                   <p className="text-muted-foreground italic text-center py-4">Revelando primeira dica...</p>
                 )}
@@ -425,8 +436,10 @@ export default function GameBoard({ category, playerCount, difficulty, onReturnT
                 )}
               </ScrollArea>
 
+              {/* Use NUM_CLUES constant for progress calculation */}
               <Progress value={(currentClueIndex / NUM_CLUES) * 100} className="w-full h-2" />
               <p className="text-sm text-muted-foreground text-center">
+                {/* Use NUM_CLUES constant */}
                 Dica {Math.min(currentClueIndex, NUM_CLUES)} de {NUM_CLUES}
               </p>
 
@@ -463,10 +476,12 @@ export default function GameBoard({ category, playerCount, difficulty, onReturnT
           {gameStarted && !gameOver && currentCard && ( // Garante que a carta exista para o botão de revelar
               <Button
                 onClick={() => currentCard && revealNextClue(currentCard.answer, currentClueIndex, currentCard.clues)}
+                // Use NUM_CLUES constant for disabling
                 disabled={loadingClue || currentClueIndex >= NUM_CLUES || gameOver || loadingCard}
                 variant="outline"
               >
                 {loadingClue ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ChevronRight className="mr-2 h-4 w-4" />}
+                {/* Display points for the *next* clue */}
                 Revelar Próxima Dica ({POINTS_PER_CLUE[currentClueIndex] ?? 0} pts)
               </Button>
           )}
