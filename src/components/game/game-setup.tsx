@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Settings, Play } from 'lucide-react';
 
-const CATEGORIES = ['General Knowledge', 'Movies', 'History', 'Science', 'Sports'];
+const CATEGORIES = ['General Knowledge', 'Movies', 'History', 'Science', 'Sports', 'Technology', 'Geography']; // Added more categories
 const PLAYER_COUNTS = [1, 2, 3, 4];
 
 export default function GameSetup() {
@@ -23,8 +23,18 @@ export default function GameSetup() {
     }
   };
 
+  // Handler to return to the setup screen
+  const handleReturnToSetup = () => {
+    setIsGameStarted(false);
+    // Optionally reset selections, or keep them for quicker restart
+    // setSelectedCategory(null);
+    // setSelectedPlayerCount(null);
+  };
+
+
   if (isGameStarted && selectedCategory && selectedPlayerCount !== null) {
-    return <GameBoard category={selectedCategory} playerCount={selectedPlayerCount} />;
+    // Pass the handleReturnToSetup function to GameBoard
+    return <GameBoard category={selectedCategory} playerCount={selectedPlayerCount} onReturnToSetup={handleReturnToSetup} />;
   }
 
   return (
